@@ -1,0 +1,84 @@
+[project]
+name = "flexexecutor"
+description = "Executors that automatically increases or decreases the number of workers"
+authors = [{ name = "leavers", email = "leavers930@gmail.com" }]
+dependencies = []
+requires-python = ">=3.8"
+readme = "README.md"
+license = { text = "MIT" }
+dynamic = ["version"]
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+[tool.autoflake]
+in-place = true
+recursive = true
+remove-all-unused-imports = true
+ignore-init-module-imports = true
+remove-duplicate-keys = true
+remove-unused-variables = true
+
+[tool.black]
+line-length = 88
+target-version = ["py38", "py39", "py310", "py311"]
+
+[tool.coverage.run]
+branch = true
+source = ["src"]
+parallel = true
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = ["pragma: nocover"]
+
+[tool.flake8]
+# extend-ignore = ["E203"]
+max-line-length = 88
+# better to use whitelist: "exclude" makes flake8 process a huge amount of files
+# exclude = [".git", "__pycache__", "build", "dist"]
+
+[tool.ruff]
+# ignore = ["E203"]
+line-length = 88
+
+[tool.isort]
+profile = "black"
+src_paths = ["src", "tests", "noxfile.py"]
+
+[tool.mypy]
+check_untyped_defs = true
+follow_imports = true
+ignore_missing_imports = true
+show_error_codes = true
+warn_unused_configs = true
+# use comment "type: ignore" to ignore single line
+# use comment "type: ignore[error-code] to ignore single error"
+
+[tool.pyright]
+extraPaths = ["__pypackages__/3.8/lib/"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "strict"
+
+[tool.pdm.version]
+source = "file"
+path = "src/flexexecutor.py"
+
+[tool.pdm.build]
+package-dir = "src"
+
+[tool.pdm.dev-dependencies]
+dev = [
+  "autoflake>=1.7.8",
+  "black>=23.7.0",
+  "isort>=5.12.0",
+  "mypy>=1.4.1",
+  "pyproject-flake8>=5.0.4.post1",
+  "nox>=2023.4.22",
+  "pytest>=7.4.0",
+  "pytest-asyncio>=0.21.1",
+  "pytest-cov>=4.1.0",
+  "pytest-timeout>=2.1.0",
+]
