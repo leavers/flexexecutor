@@ -1,6 +1,9 @@
 [project]
 name = "flexexecutor"
-description = "Executors that automatically scales the number of workers"
+description = """
+Executors for both async and sync functions \
+and automatically scales the number of workers
+"""
 authors = [{ name = "leavers" }]
 classifiers = [
   "Intended Audience :: Developers",
@@ -56,6 +59,10 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.dynamic]
 version = { attr = "flexexecutor.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["flexexecutor*"]
+exclude = ["tests"]
 
 [tool.autoflake]
 in-place = true
