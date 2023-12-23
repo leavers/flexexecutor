@@ -35,6 +35,7 @@ homepage = "https://github.com/leavers/flexexecutor"
 dev = [
   "autoflake",
   "bumpver",
+  "coverage[toml]",
   "isort",
   "mypy",
   "nox",
@@ -99,6 +100,9 @@ push = false
 branch = true
 source = ["flexexecutor.py"]
 parallel = true
+
+[tool.coverage.html]
+directory = "coverage_html_report"
 
 [tool.coverage.report]
 show_missing = true
