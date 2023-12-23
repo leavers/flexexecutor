@@ -83,7 +83,7 @@ remove-unused-variables = true
 # New Version: 1.2.4b0
 # $ bumpver test '1.2.4b0' 'MAJOR.MINOR.PATCH[PYTAGNUM]' --tag-num
 # New Version: 1.2.4b1
-current_version = "0.0.6"
+current_version = "0.0.7"
 version_pattern = "MAJOR.MINOR.PATCH[PYTAGNUM]"
 commit_message = "build: bump version {old_version} -> {new_version}"
 commit = true
