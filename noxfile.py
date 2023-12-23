@@ -193,4 +193,4 @@ def publish(
     clean(session)
     session.run("python", "-m", "build")
     session.run("twine", "check", "dist/*")
-    session.run("twine", "upload", "dist/*")
+    session.run("twine", "upload", "--skip-existing", "dist/*")

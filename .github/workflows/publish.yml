@@ -1,9 +1,17 @@
 name: Publish
 
 on:
+  # Run when a new tag has been created
   push:
     tags:
       - "*"
+
+  # Run when a release has been created
+  release:
+    types: [created]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
 
 jobs:
   publish:
