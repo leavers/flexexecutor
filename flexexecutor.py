@@ -1,7 +1,7 @@
 import asyncio
 import atexit
 import itertools
-from concurrent.futures import _base
+from concurrent.futures import ProcessPoolExecutor, _base
 from concurrent.futures import thread as _thread
 from inspect import iscoroutinefunction
 from queue import Empty
@@ -9,9 +9,16 @@ from threading import Event, Lock, Thread
 from time import monotonic
 from weakref import WeakKeyDictionary, ref
 
+__all__ = (
+    "__version__",
+    "AsyncPoolExecutor",
+    "ProcessPoolExecutor",
+    "ThreadPoolExecutor",
+)
+
 __version__ = "0.0.1"
 
-_threads_queues = WeakKeyDictionary()
+_threads_queues = WeakKeyDictionary()  # type: ignore
 _shutdown = False
 _global_shutdown_lock = Lock()
 
@@ -95,7 +102,7 @@ class ThreadPoolExecutor(_thread.ThreadPoolExecutor):
         threads = self._threads
         dead_threads = [t for t in threads if not t.is_alive()]
         for t in dead_threads:
-            threads.remove(t)
+            threads.remove(t)  # type: ignore
 
         def weakref_cb(_, q=self._work_queue):
             q.put(None)
@@ -114,7 +121,7 @@ class ThreadPoolExecutor(_thread.ThreadPoolExecutor):
                 ),
             )
             t.start()
-            threads.add(t)
+            threads.add(t)  # type: ignore
             _threads_queues[t] = self._work_queue
 
 
@@ -125,11 +132,11 @@ class _AsyncWorkItem(_thread._WorkItem):
 
         try:
             result = await self.fn(*self.args, **self.kwargs)
+            self.future.set_result(result)
         except BaseException as exc:
             self.future.set_exception(exc)
-            self = None
-        else:
-            self.future.set_result(result)
+        finally:
+            del self
 
 
 async def _async_worker(
@@ -248,7 +255,7 @@ class AsyncPoolExecutor(_thread.ThreadPoolExecutor):
         if max_workers is None:
             max_workers = 262144
         if not thread_name_prefix:
-            thread_name_prefix = f"AsyncPoolExecutor-{self._counter()}"
+            thread_name_prefix = f"AsyncPoolExecutor-{self._counter()}"  # type: ignore
         super().__init__(max_workers, thread_name_prefix, initializer, initargs)
         del self._idle_semaphore
         self._running = Event()
@@ -271,7 +278,7 @@ class AsyncPoolExecutor(_thread.ThreadPoolExecutor):
                     "cannot schedule new futures after interpreter shutdown"
                 )
 
-            f = _base.Future()
+            f = _base.Future()  # type: ignore
             w = _AsyncWorkItem(f, fn, args, kwargs)
 
             self._work_queue.put(w)
@@ -284,7 +291,7 @@ class AsyncPoolExecutor(_thread.ThreadPoolExecutor):
         if self._running.is_set():
             return
         threads = self._threads
-        threads.clear()
+        threads.clear()  # type: ignore
 
         def weakref_cb(_, q=self._work_queue):
             q.put(None)
@@ -299,5 +306,5 @@ class AsyncPoolExecutor(_thread.ThreadPoolExecutor):
             self._idle_timeout,
         )
         w.start()
-        threads.add(w)
+        threads.add(w)  # type: ignore
         _threads_queues[w] = self._work_queue
