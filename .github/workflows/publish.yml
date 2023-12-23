@@ -44,9 +44,9 @@ jobs:
         with:
           version_regex: ^[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
       - name: Upload wheels to Github release
         uses: AButler/upload-release-assets@v3.0
         with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          repo-token: ${{ secrets.RELEASE_TOKEN }}
           files: "dist/*"
