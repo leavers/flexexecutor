@@ -4,7 +4,7 @@ on:
   # Run when a new tag has been created
   push:
     tags:
-      - "*"
+      - "[0-9]+.[0-9]+.[0-9]+"
 
   # Run when a release has been created
   release:
@@ -39,6 +39,12 @@ jobs:
           TWINE_PASSWORD: ${{ secrets.pypi_token }}
         run: |
           nox -s publish
+      - name: Create GitHub release
+        uses: Roang-zero1/github-create-release-action@v3
+        with:
+          version_regex: ^[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Upload wheels to Github release
         uses: AButler/upload-release-assets@v3.0
         with:
