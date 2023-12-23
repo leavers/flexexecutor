@@ -23,3 +23,8 @@ steps:
       TWINE_PASSWORD: ${{ secrets.pypi_token }}
     run: |
       nox -s publish
+  - name: Upload wheels to release
+    uses: AButler/upload-release-assets@v3.0
+    with:
+      repo-token: ${{ secrets.GITHUB_TOKEN }}
+      files: "dist/*"
