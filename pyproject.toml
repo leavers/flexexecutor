@@ -55,15 +55,14 @@ pylsp = [
 ]
 
 [build-system]
-requires = ["setuptools >= 65.0.0", "setuptools-scm"]
+requires = ["setuptools >= 69.0.3", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.dynamic]
 version = { attr = "flexexecutor.__version__" }
 
-[tool.setuptools.packages.find]
-include = ["flexexecutor*"]
-exclude = ["tests"]
+[tool.setuptools]
+py-modules = ["flexexecutor"]
 
 [tool.autoflake]
 in-place = true

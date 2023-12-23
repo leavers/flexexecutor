@@ -17,6 +17,9 @@ steps:
       python --version
       pip --version
       nox --version
-  - name: "Publish to PyPI"
+  - name: "Build wheel and publish to PyPI"
+    env:
+      TWINE_USERNAME: __token__
+      TWINE_PASSWORD: ${{ secrets.pypi_token }}
     run: |
       nox -s publish

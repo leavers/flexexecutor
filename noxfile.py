@@ -9,6 +9,8 @@ AUTOFLAKE_VERSION = "2.2.1"
 ISORT_VERSION = "5.13.2"
 RUFF_VERSION = "0.1.9"
 MYPY_VERSION = "1.8.0"
+BUILD_VERSION = "1.0.3"
+TWINE_VERSION = "4.0.2"
 
 SOURCE = "flexexecutor"
 SOURCE_PATH = f"{SOURCE}.py"
@@ -173,3 +175,22 @@ def test_all(session: Session):
         "pyproject.toml",
         TEST_DIR,
     )
+
+
+@nox.session(python="3.8")
+@nox.parametrize("build", [BUILD_VERSION])
+@nox.parametrize("twine", [TWINE_VERSION])
+def publish(
+    session: Session,
+    build: str,
+    twine: str,
+):
+    session.install(
+        f"build~={build}",
+        f"twine~={twine}",
+    )
+
+    clean(session)
+    session.run("python", "-m", "build")
+    session.run("twine", "check", "dist/*")
+    session.run("twine", "upload", "dist/*")
