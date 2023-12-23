@@ -39,6 +39,9 @@ jobs:
           TWINE_PASSWORD: ${{ secrets.pypi_token }}
         run: |
           nox -s publish
+      - name: Echo ref_name
+        run: |
+          echo ${{ github.ref_name }}
       - name: Create GitHub release
         uses: elgohr/Github-Release-Action@v5
         env:
@@ -48,6 +51,6 @@ jobs:
       - name: Upload wheels to Github release
         uses: AButler/upload-release-assets@v3.0
         with:
-          release-id: ${{ github.ref_name }}
+          release-tag: ${{ github.ref_name }}
           repo-token: ${{ secrets.RELEASE_TOKEN }}
           files: "dist/*"
