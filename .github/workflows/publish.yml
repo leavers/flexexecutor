@@ -4,7 +4,7 @@ on:
   # Run when a new tag has been created
   push:
     tags:
-      - "[0-9]+.[0-9]+.[0-9]+"
+      - "*"
 
   # Run when a release has been created
   # release:
@@ -40,13 +40,14 @@ jobs:
         run: |
           nox -s publish
       - name: Create GitHub release
-        uses: Roang-zero1/github-create-release-action@v3
-        with:
-          version_regex: ^[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+
+        uses: elgohr/Github-Release-Action@v5
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        with:
+          title: ${{ github.ref_name }}
       - name: Upload wheels to Github release
         uses: AButler/upload-release-assets@v3.0
         with:
+          release-id: ${{ github.ref_name }}
           repo-token: ${{ secrets.RELEASE_TOKEN }}
           files: "dist/*"
