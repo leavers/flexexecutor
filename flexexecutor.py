@@ -1,8 +1,9 @@
 import asyncio
 import atexit
 import itertools
-from concurrent.futures import ProcessPoolExecutor, _base
-from concurrent.futures import thread as _thread
+from concurrent.futures import Future, ProcessPoolExecutor, _base
+from concurrent.futures.thread import BrokenThreadPool, _WorkItem
+from concurrent.futures.thread import ThreadPoolExecutor as _ThreadPoolExecutor
 from inspect import iscoroutinefunction
 from queue import Empty
 from threading import Event, Lock, Thread
@@ -12,6 +13,8 @@ from weakref import WeakKeyDictionary, ref
 __all__ = (
     "__version__",
     "AsyncPoolExecutor",
+    "BrokenThreadPool",
+    "Future",
     "ProcessPoolExecutor",
     "ThreadPoolExecutor",
 )
@@ -48,13 +51,12 @@ def _worker(executor_ref, work_queue, initializer, initargs, idle_timeout):
                 executor._initializer_failed()
             return
 
-    idle_tick = monotonic()
+    idle_tick = -1.0
     try:
         while True:
-            if idle_timeout >= 0 and monotonic() - idle_tick > idle_timeout:
-                executor = executor_ref()
-                if executor is not None:
-                    executor._idle_semaphore.acquire(timeout=0)
+            if idle_tick == -1.0:
+                idle_tick = monotonic()
+            elif idle_timeout >= 0 and monotonic() - idle_tick > idle_timeout:
                 break
             try:
                 work_item = work_queue.get(block=True, timeout=0.1)
@@ -70,18 +72,20 @@ def _worker(executor_ref, work_queue, initializer, initargs, idle_timeout):
                 del executor
                 idle_tick = monotonic()
                 continue
-            executor = executor_ref()
-            if _thread._shutdown or executor is None or executor._shutdown:
-                if executor is not None:
-                    executor._shutdown = True
+            break
+    finally:
+        executor = executor_ref()
+        if executor is None:
+            work_queue.put(None)
+        else:
+            executor._idle_semaphore.acquire(timeout=0)
+            if _shutdown or executor._shutdown:
+                executor._shutdown = True
                 work_queue.put(None)
-                return
-            del executor
-    except BaseException:
-        _base.LOGGER.critical("Exception in worker", exc_info=True)
+        del executor
 
 
-class ThreadPoolExecutor(_thread.ThreadPoolExecutor):
+class ThreadPoolExecutor(_ThreadPoolExecutor):
     def __init__(
         self,
         max_workers=None,
@@ -95,6 +99,29 @@ class ThreadPoolExecutor(_thread.ThreadPoolExecutor):
             self._idle_timeout = -1
         else:
             self._idle_timeout = max(0.1, idle_timeout)
+
+    def submit(self, fn, /, *args, **kwargs):
+        if iscoroutinefunction(fn):
+            raise TypeError("fn must not be a coroutine function")
+
+        with self._shutdown_lock, _global_shutdown_lock:
+            if self._broken:
+                raise BrokenThreadPool(self._broken)
+
+            if self._shutdown:
+                raise RuntimeError("cannot schedule new futures after shutdown")
+            if _shutdown:
+                # coverage didn't realize that _shutdown is set, add nocover here
+                raise RuntimeError(  # pragma: nocover
+                    "cannot schedule new futures after interpreter shutdown"
+                )
+
+            f = Future()  # type: ignore
+            w = _WorkItem(f, fn, args, kwargs)
+
+            self._work_queue.put(w)
+            self._adjust_thread_count()
+            return f
 
     def _adjust_thread_count(self):
         if self._idle_semaphore.acquire(timeout=0):
@@ -125,7 +152,7 @@ class ThreadPoolExecutor(_thread.ThreadPoolExecutor):
             _threads_queues[t] = self._work_queue
 
 
-class _AsyncWorkItem(_thread._WorkItem):
+class _AsyncWorkItem(_WorkItem):
     async def run(self):
         if not self.future.set_running_or_notify_cancel():
             return
@@ -169,14 +196,11 @@ async def _async_worker(
     try:
         while True:
             if idle_timeout >= 0 and monotonic() - idle_tick > idle_timeout:
-                executor = executor_ref()
-                if executor is not None:
-                    executor._idle_semaphore.acquire(timeout=0)
                 break
             try:
                 work_item = work_queue.get(block=True, timeout=0.1)
             except Empty:
-                pass
+                continue
             if work_item is not None:
                 task = loop.create_task(work_item.run())
                 curr_tasks.add(task)
@@ -189,23 +213,17 @@ async def _async_worker(
                 if curr_tasks:
                     idle_tick = monotonic()
                 continue
-
-            executor = executor_ref()
-            if _thread._shutdown or executor is None or executor._shutdown:
-                if executor is not None:
-                    executor._shutdown = True
-                work_queue.put(None)
-
-                for t in curr_tasks:
-                    await t
-                return
-            del executor
-    except BaseException:
-        _base.LOGGER.critical("Exception in worker", exc_info=True)
+            break
     finally:
         executor = executor_ref()
-        if executor is not None:
+        if executor is None:
+            work_queue.put(None)
+        else:
             executor._running.clear()
+            if _shutdown or executor._shutdown:
+                executor._shutdown = True
+                work_queue.put(None)
+        del executor
 
 
 class AsyncWorker(Thread):
@@ -241,7 +259,7 @@ class AsyncWorker(Thread):
         )
 
 
-class AsyncPoolExecutor(_thread.ThreadPoolExecutor):
+class AsyncPoolExecutor(ThreadPoolExecutor):
     _counter = itertools.count().__next__
 
     def __init__(
@@ -269,16 +287,17 @@ class AsyncPoolExecutor(_thread.ThreadPoolExecutor):
             raise TypeError("fn must be a coroutine function")
         with self._shutdown_lock, _global_shutdown_lock:
             if self._broken:
-                raise _thread.BrokenThreadPool(self._broken)
+                raise BrokenThreadPool(self._broken)
 
             if self._shutdown:
                 raise RuntimeError("cannot schedule new futures after shutdown")
-            if _thread._shutdown:
-                raise RuntimeError(
+            if _shutdown:
+                # coverage didn't realize that _shutdown is set, add nocover here
+                raise RuntimeError(  # pragma: nocover
                     "cannot schedule new futures after interpreter shutdown"
                 )
 
-            f = _base.Future()  # type: ignore
+            f = Future()  # type: ignore
             w = _AsyncWorkItem(f, fn, args, kwargs)
 
             self._work_queue.put(w)
