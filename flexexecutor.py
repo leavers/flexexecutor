@@ -2,9 +2,8 @@ import asyncio
 import atexit
 import itertools
 from concurrent.futures import Future, ProcessPoolExecutor, _base
-from concurrent.futures.thread import BrokenThreadPool
+from concurrent.futures.thread import BrokenThreadPool, _WorkItem
 from concurrent.futures.thread import ThreadPoolExecutor as _ThreadPoolExecutor
-from concurrent.futures.thread import _WorkItem
 from inspect import iscoroutinefunction
 from queue import Empty
 from threading import Event, Lock, Thread
@@ -73,7 +72,7 @@ def _worker(executor_ref, work_queue, initializer, initargs, idle_timeout):
                 del executor
                 idle_tick = monotonic()
                 continue
-            break
+            break  # pragma: no cover
     finally:
         executor = executor_ref()
         if executor is None:
@@ -112,8 +111,8 @@ class ThreadPoolExecutor(_ThreadPoolExecutor):
             if self._shutdown:
                 raise RuntimeError("cannot schedule new futures after shutdown")
             if _shutdown:
-                # coverage didn't realize that _shutdown is set, add nocover here
-                raise RuntimeError(  # pragma: nocover
+                # coverage didn't realize that _shutdown is set, add no cover here
+                raise RuntimeError(  # pragma: no cover
                     "cannot schedule new futures after interpreter shutdown"
                 )
 
@@ -301,8 +300,8 @@ class AsyncPoolExecutor(ThreadPoolExecutor):
             if self._shutdown:
                 raise RuntimeError("cannot schedule new futures after shutdown")
             if _shutdown:
-                # coverage didn't realize that _shutdown is set, add nocover here
-                raise RuntimeError(  # pragma: nocover
+                # coverage didn't realize that _shutdown is set, add no cover here
+                raise RuntimeError(  # pragma: no cover
                     "cannot schedule new futures after interpreter shutdown"
                 )
 

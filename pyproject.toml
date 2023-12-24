@@ -36,7 +36,6 @@ dev = [
   "autoflake",
   "bumpver",
   "coverage[toml]",
-  "isort",
   "mypy",
   "nox",
   "pytest",
@@ -51,7 +50,6 @@ pylsp = [
   "pylsp-mypy",
   "pylsp-rope",
   "python-lsp-ruff",
-  "pyls-isort",
   "python-lsp-black",
 ]
 
@@ -106,20 +104,16 @@ directory = "coverage_html_report"
 
 [tool.coverage.report]
 show_missing = true
-exclude_lines = ["pragma: nocover"]
+exclude_lines = ["pragma: no cover"]
 
 [tool.ruff]
 select = ["E", "F", "I"]
 ignore = ["E203"]
 line-length = 88
 
-[tool.isort]
-profile = "black"
-src_paths = ["flexexecutor.py", "tests", "noxfile.py"]
-
 [tool.mypy]
 check_untyped_defs = true
-follow_imports = true
+follow_imports = "error"
 ignore_missing_imports = true
 show_error_codes = true
 warn_unused_configs = true

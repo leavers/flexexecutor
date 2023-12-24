@@ -4,9 +4,9 @@ import time
 from concurrent.futures.thread import BrokenThreadPool
 
 import pytest
-from flexexecutor import AsyncPoolExecutor
 from pytest_mock import MockerFixture
 
+from flexexecutor import AsyncPoolExecutor
 from tests.conftest import alive_threads
 
 
@@ -14,7 +14,7 @@ async def simple_return(n: int = 1):
     return n
 
 
-async def simple_sleep_return(n: int = 1, wait: float = 0.1):
+async def simple_delay_return(n: int = 1, wait: float = 0.1):
     await asyncio.sleep(wait)
     return n
 
@@ -114,16 +114,26 @@ def test_initializer_with_error():
         executor.submit(simple_return)
 
 
+def test_return_exceptions():
+    async def func():
+        return 1 / 0
+
+    with AsyncPoolExecutor() as executor:
+        future = executor.submit(func)
+        with pytest.raises(ZeroDivisionError):
+            future.result()
+
+
 def test_finite_timeout():
     with AsyncPoolExecutor(max_workers=1, idle_timeout=0.1) as executor:
-        future = executor.submit(simple_sleep_return, wait=0.1)
+        future = executor.submit(simple_delay_return, wait=0.1)
         assert len(alive_threads(executor)) == 1
         future.result()
 
         time.sleep(0.2)
         assert len(alive_threads(executor)) == 0
 
-        executor.submit(simple_sleep_return, wait=0.1)
+        executor.submit(simple_delay_return, wait=0.1)
         assert len(alive_threads(executor)) == 1
 
     assert len(alive_threads(executor)) == 0
@@ -136,7 +146,7 @@ def test_infinite_timeout():
         assert len(alive_threads(executor)) == 1
 
         futures = [
-            executor.submit(simple_sleep_return, n=i, wait=0.2) for i in range(10)
+            executor.submit(simple_delay_return, n=i, wait=0.2) for i in range(10)
         ]
 
         list([f.result() for f in futures])
@@ -156,12 +166,20 @@ def test_cancel_future():
         return invoked
 
     with AsyncPoolExecutor(max_workers=1) as executor:
-        executor.submit(simple_sleep_return, wait=0.5)
+        executor.submit(simple_delay_return, wait=0.5)
         f = executor.submit(func)
         f.cancel()
         with pytest.raises(CancelledError):
             f.result()
         assert invoked is False
+
+
+def test_wait_futures_on_shutdown():
+    with AsyncPoolExecutor() as executor:
+        f = executor.submit(simple_delay_return, wait=0.3)
+        assert f.done() is False
+    assert f.done() is True
+    assert f.result() == 1
 
 
 def test_atexit():
@@ -180,3 +198,15 @@ def test_atexit():
         assert len(alive_threads(executor)) == 0
     finally:
         flexexecutor._shutdown = False
+
+
+def test_handle_executor_deleted_gracefully():
+    import weakref
+
+    executor = AsyncPoolExecutor()
+    executor_ref = weakref.ref(executor)
+    f = executor.submit(simple_delay_return, wait=1)
+    del executor
+    time.sleep(0.5)  # executor may not be deleted immediately
+    assert executor_ref() is None
+    assert f.result() == 1

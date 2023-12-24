@@ -3,10 +3,15 @@ import time
 from concurrent.futures.thread import BrokenThreadPool
 
 import pytest
-from flexexecutor import ThreadPoolExecutor
 from pytest_mock import MockerFixture
 
+from flexexecutor import ThreadPoolExecutor
 from tests.conftest import alive_threads
+
+
+def simple_delay_return(n: int = 1, wait: float = 0.1):
+    time.sleep(wait)
+    return n
 
 
 def test_simple_run():
@@ -116,6 +121,17 @@ def test_initializer_with_error():
         executor.submit(lambda: 1)
 
 
+def test_worker_alive():
+    with ThreadPoolExecutor(idle_timeout=0.2) as executor:
+        assert len(alive_threads(executor)) == 0
+        time.sleep(0.2)
+        assert len(alive_threads(executor)) == 0
+        executor.submit(lambda: 1)
+        assert len(alive_threads(executor)) == 1
+        time.sleep(0.3)
+        assert len(alive_threads(executor)) == 0
+
+
 def test_finite_timeout():
     with ThreadPoolExecutor(max_workers=1, idle_timeout=0.1) as executor:
         future = executor.submit(lambda: time.sleep(0.1))
@@ -145,6 +161,14 @@ def test_infinite_timeout():
     assert len(alive_threads(executor)) == 0
 
 
+def test_wait_futures_on_shutdown():
+    with ThreadPoolExecutor() as executor:
+        f = executor.submit(simple_delay_return, wait=0.3)
+        assert f.done() is False
+    assert f.done() is True
+    assert f.result() == 1
+
+
 def test_atexit():
     import flexexecutor
     from flexexecutor import _python_exit
@@ -161,3 +185,14 @@ def test_atexit():
         assert len(alive_threads(executor)) == 0
     finally:
         flexexecutor._shutdown = False
+
+
+def test_handle_executor_deleted_gracefully():
+    import weakref
+
+    executor = ThreadPoolExecutor()
+    executor_ref = weakref.ref(executor)
+    f = executor.submit(simple_delay_return, wait=0.5)
+    del executor
+    assert executor_ref() is None
+    assert f.result() == 1
