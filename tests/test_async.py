@@ -4,9 +4,9 @@ import time
 from concurrent.futures.thread import BrokenThreadPool
 
 import pytest
+from flexexecutor import AsyncPoolExecutor
 from pytest_mock import MockerFixture
 
-from flexexecutor import AsyncPoolExecutor
 from tests.conftest import alive_threads
 
 
@@ -15,9 +15,7 @@ async def simple_return(n: int = 1):
 
 
 async def simple_sleep_return(n: int = 1, wait: float = 0.1):
-    print("start", n)
     await asyncio.sleep(wait)
-    print("finish", n)
     return n
 
 
@@ -118,10 +116,11 @@ def test_initializer_with_error():
 
 def test_finite_timeout():
     with AsyncPoolExecutor(max_workers=1, idle_timeout=0.1) as executor:
-        executor.submit(simple_sleep_return, wait=0.1)
+        future = executor.submit(simple_sleep_return, wait=0.1)
         assert len(alive_threads(executor)) == 1
+        future.result()
 
-        time.sleep(0.3)
+        time.sleep(0.2)
         assert len(alive_threads(executor)) == 0
 
         executor.submit(simple_sleep_return, wait=0.1)
@@ -136,12 +135,33 @@ def test_infinite_timeout():
         executor.submit(simple_return)
         assert len(alive_threads(executor)) == 1
 
-        futures = [executor.submit(simple_sleep_return, n=i, wait=0.2) for i in range(10)]
+        futures = [
+            executor.submit(simple_sleep_return, n=i, wait=0.2) for i in range(10)
+        ]
 
         list([f.result() for f in futures])
         assert len(alive_threads(executor)) == 1
 
     assert len(alive_threads(executor)) == 0
+
+
+def test_cancel_future():
+    from concurrent.futures import CancelledError
+
+    invoked = False
+
+    async def func():
+        nonlocal invoked
+        invoked = True
+        return invoked
+
+    with AsyncPoolExecutor(max_workers=1) as executor:
+        executor.submit(simple_sleep_return, wait=0.5)
+        f = executor.submit(func)
+        f.cancel()
+        with pytest.raises(CancelledError):
+            f.result()
+        assert invoked is False
 
 
 def test_atexit():

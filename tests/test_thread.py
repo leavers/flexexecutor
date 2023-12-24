@@ -3,9 +3,9 @@ import time
 from concurrent.futures.thread import BrokenThreadPool
 
 import pytest
+from flexexecutor import ThreadPoolExecutor
 from pytest_mock import MockerFixture
 
-from flexexecutor import ThreadPoolExecutor
 from tests.conftest import alive_threads
 
 
@@ -118,10 +118,11 @@ def test_initializer_with_error():
 
 def test_finite_timeout():
     with ThreadPoolExecutor(max_workers=1, idle_timeout=0.1) as executor:
-        executor.submit(lambda: time.sleep(0.1))
+        future = executor.submit(lambda: time.sleep(0.1))
         assert len(alive_threads(executor)) == 1
+        future.result()
 
-        time.sleep(0.3)
+        time.sleep(0.2)
         assert len(alive_threads(executor)) == 0
 
         executor.submit(lambda: time.sleep(0.1))

@@ -2,8 +2,9 @@ import asyncio
 import atexit
 import itertools
 from concurrent.futures import Future, ProcessPoolExecutor, _base
-from concurrent.futures.thread import BrokenThreadPool, _WorkItem
+from concurrent.futures.thread import BrokenThreadPool
 from concurrent.futures.thread import ThreadPoolExecutor as _ThreadPoolExecutor
+from concurrent.futures.thread import _WorkItem
 from inspect import iscoroutinefunction
 from queue import Empty
 from threading import Event, Lock, Thread
@@ -123,6 +124,8 @@ class ThreadPoolExecutor(_ThreadPoolExecutor):
             self._adjust_thread_count()
             return f
 
+    submit.__doc__ = _base.Executor.submit.__doc__
+
     def _adjust_thread_count(self):
         if self._idle_semaphore.acquire(timeout=0):
             return
@@ -197,24 +200,30 @@ async def _async_worker(
         while True:
             if idle_timeout >= 0 and monotonic() - idle_tick > idle_timeout:
                 break
-            try:
-                work_item = work_queue.get(block=True, timeout=0.1)
-            except Empty:
-                continue
-            if work_item is not None:
-                task = loop.create_task(work_item.run())
-                curr_tasks.add(task)
-                await asleep(0)  # ugly but working
-                del work_item
-
-                finished_tasks = [t for t in curr_tasks if t.done()]
-                for t in finished_tasks:
-                    curr_tasks.remove(t)
-                if curr_tasks:
-                    idle_tick = monotonic()
-                continue
-            break
+            if len(curr_tasks) < max_workers:
+                try:
+                    work_item = work_queue.get(block=True, timeout=0.1)
+                    if work_item is not None:
+                        task = loop.create_task(work_item.run())
+                        curr_tasks.add(task)
+                        await asleep(0)
+                        del work_item
+                    else:
+                        break
+                except Empty:
+                    pass
+            await asleep(0)
+            finished_tasks = [t for t in curr_tasks if t.done()]
+            for t in finished_tasks:
+                curr_tasks.remove(t)
+            if curr_tasks:
+                idle_tick = monotonic()
     finally:
+        while curr_tasks:
+            await asleep(0)
+            finished_tasks = [t for t in curr_tasks if t.done()]
+            for t in finished_tasks:
+                curr_tasks.remove(t)
         executor = executor_ref()
         if executor is None:
             work_queue.put(None)
