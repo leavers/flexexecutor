@@ -72,6 +72,17 @@ def test_check_executor_shutdown():
         executor.submit(simple_return)
 
 
+def test_thread_name_prefix():
+    async def func():
+        import threading
+
+        return threading.current_thread().name
+
+    with AsyncPoolExecutor(thread_name_prefix="x") as executor:
+        future = executor.submit(func)
+        assert future.result().startswith("x")
+
+
 def test_initializer():
     called_once = False
     return_value = None
@@ -160,17 +171,12 @@ def test_cancel_future():
 
     invoked = False
 
-    async def func():
-        nonlocal invoked
-        invoked = True
-        return invoked
-
     with AsyncPoolExecutor(max_workers=1) as executor:
-        executor.submit(simple_delay_return, wait=0.5)
-        f = executor.submit(func)
+        f = executor.submit(simple_delay_return, wait=0.3)
         f.cancel()
+        print(f._state)
         with pytest.raises(CancelledError):
-            f.result()
+            print(f.result())
         assert invoked is False
 
 

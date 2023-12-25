@@ -132,6 +132,15 @@ def test_worker_alive():
         assert len(alive_threads(executor)) == 0
 
 
+def test_max_workers():
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [executor.submit(simple_delay_return, wait=0.3) for _ in range(4)]
+        while True:
+            assert len(alive_threads(executor)) <= 2
+            if len([f for f in futures if not f.done()]) == 0:
+                break
+
+
 def test_finite_timeout():
     with ThreadPoolExecutor(max_workers=1, idle_timeout=0.1) as executor:
         future = executor.submit(lambda: time.sleep(0.1))

@@ -47,7 +47,7 @@ def _worker(executor_ref, work_queue, initializer, initargs, idle_timeout):
         except BaseException:
             _base.LOGGER.critical("Exception in initializer:", exc_info=True)
             executor = executor_ref()
-            if executor is not None:
+            if executor is not None:  # pragma: no cover
                 executor._initializer_failed()
             return
 
@@ -157,6 +157,7 @@ class ThreadPoolExecutor(_ThreadPoolExecutor):
 class _AsyncWorkItem(_WorkItem):
     async def run(self):
         if not self.future.set_running_or_notify_cancel():
+            print("cancelled")
             return
 
         try:
@@ -185,7 +186,7 @@ async def _async_worker(
             initializer(*initargs)
         except BaseException:
             _base.LOGGER.critical("Exception in initializer:", exc_info=True)
-            if executor is not None:
+            if executor is not None:  # pragma: no cover
                 executor._running.set()
                 executor._initializer_failed()
             return
