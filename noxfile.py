@@ -122,7 +122,7 @@ def mypy(session: Session, mypy: str):
 
 
 @nox.session(python=False)
-def test_under_current_env(session: Session):
+def test(session: Session):
     session.run(
         "pytest",
         "--cov",
@@ -139,9 +139,16 @@ def test_under_current_env(session: Session):
     )
 
 
-@nox.session(python=["3.6", "3.8", "3.10", "3.11", "3.12"])
+@nox.session(python=["3.6", "3.8", "3.10", "3.11", "3.12"], reuse_venv=True)
 def test_all(session: Session):
-    session.install("pytest")
+    session.install(
+        "coverage[toml]",
+        "pytest",
+        "pytest-asyncio",
+        "pytest-cov",
+        "pytest-mock",
+        "pytest-timeout",
+    )
     session.run(
         "pytest",
         "--cov",
@@ -158,7 +165,7 @@ def test_all(session: Session):
     )
 
 
-@nox.session(python="3.8")
+@nox.session(python="3.8", reuse_venv=True)
 @nox.parametrize("build", [BUILD_VERSION])
 @nox.parametrize("twine", [TWINE_VERSION])
 def publish(
