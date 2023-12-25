@@ -139,6 +139,19 @@ def test(session: Session):
     )
 
 
+@nox.session(reuse_venv=True)
+def test_for_ci(session: Session):
+    session.install(
+        "coverage[toml]",
+        "pytest",
+        "pytest-asyncio",
+        "pytest-cov",
+        "pytest-mock",
+        "pytest-timeout",
+    )
+    test(session)
+
+
 @nox.session(python=["3.6", "3.8", "3.10", "3.11", "3.12"], reuse_venv=True)
 def test_all(session: Session):
     session.install(

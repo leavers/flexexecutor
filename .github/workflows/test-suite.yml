@@ -37,4 +37,4 @@ jobs:
         if: "${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.8' }}"
       - name: "Run tests"
         run: |
-          nox -s test
+          nox -s test_for_ci
