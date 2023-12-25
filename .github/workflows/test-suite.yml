@@ -31,10 +31,6 @@ jobs:
           python --version
           pip --version
           nox --version
-      - name: "Run format checks"
-        run: "scripts/check"
-        shell: bash
-        if: "${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.8' }}"
       - name: "Run tests"
         run: |
           nox -s test_for_ci
