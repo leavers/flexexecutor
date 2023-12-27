@@ -215,5 +215,6 @@ def test_handle_executor_deleted_gracefully():
     f = executor.submit(simple_delay_return, wait=1)
     del executor
     gc.collect()
+    time.sleep(0.5)  # executor may not be deleted immediately
     assert executor_ref() is None
     assert f.result() == 1
