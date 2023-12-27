@@ -207,12 +207,13 @@ def test_atexit():
 
 
 def test_handle_executor_deleted_gracefully():
+    import gc
     import weakref
 
     executor = AsyncPoolExecutor()
     executor_ref = weakref.ref(executor)
     f = executor.submit(simple_delay_return, wait=1)
     del executor
-    time.sleep(0.5)  # executor may not be deleted immediately
+    gc.collect()
     assert executor_ref() is None
     assert f.result() == 1

@@ -94,6 +94,8 @@ class ThreadPoolExecutor(_ThreadPoolExecutor):
         initargs=(),
         idle_timeout=60.0,
     ):
+        if max_workers is None:
+            max_workers = 1024
         super().__init__(max_workers, thread_name_prefix, initializer, initargs)
         if idle_timeout is None or idle_timeout < 0:
             self._idle_timeout = -1
