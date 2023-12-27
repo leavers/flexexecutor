@@ -7,7 +7,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from flexexecutor import AsyncPoolExecutor
-from tests.conftest import alive_threads
+from tests.conftest import alive_threads, wait_for_alive_threads
 
 
 async def simple_return(n: int = 1):
@@ -141,8 +141,7 @@ def test_finite_timeout():
         assert len(alive_threads(executor)) == 1
         future.result()
 
-        time.sleep(0.2)
-        assert len(alive_threads(executor)) == 0
+        assert wait_for_alive_threads(executor, 0, 0.5) == 0
 
         executor.submit(simple_delay_return, wait=0.1)
         assert len(alive_threads(executor)) == 1
