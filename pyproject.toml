@@ -28,7 +28,7 @@ dynamic = ["version"]
 
 [project.urls]
 homepage = "https://github.com/leavers/flexexecutor"
-# documentation = "URL of documentation"
+documentation = "https://github.com/leavers/flexexecutor/blob/main/README.md"
 # changelog = "URL of changelog"
 
 [project.optional-dependencies]

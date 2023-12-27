@@ -88,12 +88,31 @@ def _worker(executor_ref, work_queue, initializer, initargs, idle_timeout):
 class ThreadPoolExecutor(_ThreadPoolExecutor):
     def __init__(
         self,
-        max_workers=None,
+        max_workers=1024,
         thread_name_prefix="",
         initializer=None,
         initargs=(),
         idle_timeout=60.0,
     ):
+        """Initializes a new ThreadPoolExecutor instance.
+
+        :type max_workers: int, optional
+        :param max_workers: The maximum number of workers to create. Defaults to 1024.
+
+        :type thread_name_prefix: str, optional
+        :param thread_name_prefix: An optional name prefix to give our threads.
+
+        :type initializer: callable, optional
+        :param initializer: A callable used to initialize worker threads.
+
+        :type initargs: tuple, optional
+        :parm initargs: A tuple of arguments to pass to the initializer.
+
+        :type idle_timeout: float, optional
+        :param idle_timeout: The maximum amount of time (in seconds) that a worker
+            thread can remain idle before it is terminated. If set to None or negative
+            value, workers will never be terminated. Defaults to 60 seconds.
+        """
         if max_workers is None:
             max_workers = 1024
         super().__init__(max_workers, thread_name_prefix, initializer, initargs)
@@ -281,6 +300,25 @@ class AsyncPoolExecutor(ThreadPoolExecutor):
         initargs=(),
         idle_timeout=60.0,
     ):
+        """Initializes a new AsyncPoolExecutor instance.
+
+        :type max_workers: int, optional
+        :param max_workers: The maximum number of workers to create. Defaults to 261244.
+
+        :type thread_name_prefix: str, optional
+        :param thread_name_prefix: An optional name prefix to give our threads.
+
+        :type initializer: callable, optional
+        :param initializer: A callable used to initialize worker threads.
+
+        :type initargs: tuple, optional
+        :parm initargs: A tuple of arguments to pass to the initializer.
+
+        :type idle_timeout: float, optional
+        :param idle_timeout: The maximum amount of time (in seconds) that a worker
+            thread can remain idle before it is terminated. If set to None or negative
+            value, workers will never be terminated. Defaults to 60 seconds.
+        """
         if max_workers is None:
             max_workers = 262144
         if not thread_name_prefix:
