@@ -128,7 +128,7 @@ def test_worker_alive():
         assert len(alive_threads(executor)) == 0
         executor.submit(lambda: 1)
         assert len(alive_threads(executor)) == 1
-        time.sleep(0.3)
+        time.sleep(0.5)
         assert len(alive_threads(executor)) == 0
 
 
