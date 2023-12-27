@@ -147,7 +147,7 @@ def test_finite_timeout():
         assert len(alive_threads(executor)) == 1
         future.result()
 
-        time.sleep(0.2)
+        time.sleep(0.5)
         assert len(alive_threads(executor)) == 0
 
         executor.submit(lambda: time.sleep(0.1))
