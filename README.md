@@ -1,6 +1,8 @@
 # Flexexecutor
 
-![Testing](https://github.com/leavers/flexexecutor/workflows/Test%20Suite/badge.svg?event=push&branch=main)
+[![Testing](https://github.com/leavers/flexexecutor/workflows/Test%20Suite/badge.svg)](https://github.com/leavers/flexexecutor/actions)
+[![Package version](https://img.shields.io/pypi/v/flexexecutor.svg)](https://pypi.org/project/flexexecutor/)
+[![Python](https://img.shields.io/pypi/pyversions/flexexecutor.svg)](https://pypi.org/project/flexexecutor/)
 
 Flexexecutor provides executors that can automatically scale the number of workers up
 and down.
