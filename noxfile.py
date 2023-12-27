@@ -6,7 +6,6 @@ from nox.command import CommandFailed
 
 PYTHON_BASE_VERSION = "3.8"
 AUTOFLAKE_VERSION = "2.2.1"
-ISORT_VERSION = "5.13.2"
 RUFF_VERSION = "0.1.9"
 MYPY_VERSION = "1.8.0"
 BUILD_VERSION = "1.0.3"
@@ -59,17 +58,10 @@ def clean(session: Session):
 
 @nox.session(python="3.8", reuse_venv=True)
 @nox.parametrize("autoflake", [AUTOFLAKE_VERSION])
-@nox.parametrize("isort", [ISORT_VERSION])
 @nox.parametrize("ruff", [RUFF_VERSION])
-def format(
-    session: Session,
-    autoflake: str,
-    isort: str,
-    ruff: str,
-):
+def format(session: Session, autoflake: str, ruff: str):
     session.install(
         f"autoflake~={autoflake}",
-        f"isort~={isort}",
         f"ruff~={ruff}",
     )
     try:
@@ -82,25 +74,16 @@ def format(
         )
     session.run("autoflake", "--version")
     session.run("autoflake", SOURCE_PATH, NOXFILE_PATH, TEST_DIR)
-    session.run("isort", "--vn")
-    session.run("isort", SOURCE_PATH, NOXFILE_PATH, TEST_DIR)
     session.run("ruff", "--version")
     session.run("ruff", "format", SOURCE_PATH, NOXFILE_PATH, TEST_DIR)
 
 
 @nox.session(python="3.8", reuse_venv=True)
 @nox.parametrize("autoflake", [AUTOFLAKE_VERSION])
-@nox.parametrize("isort", [ISORT_VERSION])
 @nox.parametrize("ruff", [RUFF_VERSION])
-def format_check(
-    session: Session,
-    autoflake: str,
-    isort: str,
-    ruff: str,
-):
+def format_check(session: Session, autoflake: str, ruff: str):
     session.install(
         f"autoflake~={autoflake}",
-        f"isort~={isort}",
         f"ruff~={ruff}",
     )
     try:
@@ -113,8 +96,6 @@ def format_check(
         )
     session.run("autoflake", "--version")
     session.run("autoflake", "--check-diff", SOURCE_PATH, NOXFILE_PATH, TEST_DIR)
-    session.run("isort", "--vn")
-    session.run("isort", "--check", "--diff", SOURCE_PATH, NOXFILE_PATH, TEST_DIR)
     session.run("ruff", "--version")
     session.run(
         "ruff",
@@ -141,7 +122,7 @@ def mypy(session: Session, mypy: str):
 
 
 @nox.session(python=False)
-def test_under_current_env(session: Session):
+def test(session: Session):
     session.run(
         "pytest",
         "--cov",
@@ -158,9 +139,29 @@ def test_under_current_env(session: Session):
     )
 
 
-@nox.session(python=["3.6", "3.8", "3.10", "3.11", "3.12"])
+@nox.session(reuse_venv=True)
+def test_for_ci(session: Session):
+    session.install(
+        "coverage[toml]",
+        "pytest",
+        "pytest-asyncio",
+        "pytest-cov",
+        "pytest-mock",
+        "pytest-timeout",
+    )
+    test(session)
+
+
+@nox.session(python=["3.6", "3.8", "3.10", "3.11", "3.12"], reuse_venv=True)
 def test_all(session: Session):
-    session.install("pytest")
+    session.install(
+        "coverage[toml]",
+        "pytest",
+        "pytest-asyncio",
+        "pytest-cov",
+        "pytest-mock",
+        "pytest-timeout",
+    )
     session.run(
         "pytest",
         "--cov",
@@ -177,7 +178,7 @@ def test_all(session: Session):
     )
 
 
-@nox.session(python="3.8")
+@nox.session(python="3.8", reuse_venv=True)
 @nox.parametrize("build", [BUILD_VERSION])
 @nox.parametrize("twine", [TWINE_VERSION])
 def publish(
