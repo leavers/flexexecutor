@@ -123,7 +123,11 @@ class ThreadPoolExecutor(_ThreadPoolExecutor):
 
     def submit(self, fn, /, *args, **kwargs):
         if iscoroutinefunction(fn):
-            raise TypeError("fn must not be a coroutine function")
+            try:
+                from asgiref.sync import AsyncToSync
+            except ModuleNotFoundError:
+                raise TypeError("fn must not be a coroutine function") from None
+            fn = AsyncToSync(fn)
 
         with self._shutdown_lock, _global_shutdown_lock:
             if self._broken:
@@ -178,7 +182,6 @@ class ThreadPoolExecutor(_ThreadPoolExecutor):
 class _AsyncWorkItem(_WorkItem):
     async def run(self):
         if not self.future.set_running_or_notify_cancel():
-            print("cancelled")
             return
 
         try:
@@ -333,7 +336,11 @@ class AsyncPoolExecutor(ThreadPoolExecutor):
 
     def submit(self, fn, /, *args, **kwargs):
         if not iscoroutinefunction(fn):
-            raise TypeError("fn must be a coroutine function")
+            try:
+                from asgiref.sync import SyncToAsync
+            except ModuleNotFoundError:
+                raise TypeError("fn must be a coroutine function") from None
+            fn = SyncToAsync(fn)
         with self._shutdown_lock, _global_shutdown_lock:
             if self._broken:
                 raise BrokenThreadPool(self._broken)

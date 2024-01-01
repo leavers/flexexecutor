@@ -1,6 +1,7 @@
 import threading
 import time
 from concurrent.futures.thread import BrokenThreadPool
+from importlib.util import find_spec
 
 import pytest
 from pytest_mock import MockerFixture
@@ -55,14 +56,6 @@ def test_multiple_tasks_on_multiple_threads():
 
     idents = [f.result() for f in futures]
     assert len(set(idents)) == len(idents)
-
-
-def test_prohibit_sync_function():
-    async def func():
-        return 1
-
-    with pytest.raises(TypeError):
-        ThreadPoolExecutor().submit(func)
 
 
 def test_check_broken_pool():
@@ -139,6 +132,10 @@ def test_max_workers():
             if len([f for f in futures if not f.done()]) == 0:
                 break
 
+    executor = ThreadPoolExecutor(max_workers=None)
+    assert executor._max_workers > 0
+    executor.shutdown()
+
 
 def test_finite_timeout():
     with ThreadPoolExecutor(max_workers=1, idle_timeout=0.1) as executor:
@@ -196,9 +193,55 @@ def test_atexit():
 def test_handle_executor_deleted_gracefully():
     import weakref
 
+    deleted_event = threading.Event()
+
+    def callback(_):
+        deleted_event.set()
+
     executor = ThreadPoolExecutor()
-    executor_ref = weakref.ref(executor)
+    executor_ref = weakref.ref(executor, callback)
     f = executor.submit(simple_delay_return, wait=0.5)
     del executor
+    assert deleted_event.wait(timeout=1.0)
     assert executor_ref() is None
     assert f.result() == 1
+
+
+def test_high_concurrency():
+    results = []
+    futures = []
+    with ThreadPoolExecutor(
+        max_workers=100,
+        idle_timeout=0.5,
+    ) as executor:
+        for i in range(1000):
+            futures.append(executor.submit(simple_delay_return, n=i, wait=0.05))
+
+        for i in range(1000):
+            results.append(futures[i].result())
+
+        assert len(set(results)) == 1000
+        assert sum(results) == 499500
+        assert wait_for_alive_threads(executor, 0, 1) == 0
+
+
+asgiref_installed = find_spec("asgiref") is not None
+
+
+@pytest.mark.skipif(asgiref_installed, reason="asgiref is installed")
+def test_prohibit_async_function():
+    async def func():
+        return 1
+
+    with pytest.raises(TypeError):
+        ThreadPoolExecutor().submit(func)
+
+
+@pytest.mark.skipif(not asgiref_installed, reason="asgiref is installed")
+def test_allow_async_function():
+    async def func():
+        return 1
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(func)
+        assert future.result() == 1

@@ -1,7 +1,7 @@
 import asyncio
 import threading
-import time
 from concurrent.futures.thread import BrokenThreadPool
+from importlib.util import find_spec
 
 import pytest
 from pytest_mock import MockerFixture
@@ -50,11 +50,6 @@ def test_multiple_tasks_on_same_thread():
         ident1 = f1.result()
 
     assert ident0 == ident1
-
-
-def test_prohibit_sync_function():
-    with pytest.raises(TypeError):
-        AsyncPoolExecutor().submit(lambda: 1)
 
 
 def test_check_broken_pool():
@@ -173,7 +168,6 @@ def test_cancel_future():
     with AsyncPoolExecutor(max_workers=1) as executor:
         f = executor.submit(simple_delay_return, wait=0.3)
         f.cancel()
-        print(f._state)
         with pytest.raises(CancelledError):
             print(f.result())
         assert invoked is False
@@ -209,11 +203,51 @@ def test_handle_executor_deleted_gracefully():
     import gc
     import weakref
 
+    deleted_event = threading.Event()
+
+    def callback(_):
+        deleted_event.set()
+
     executor = AsyncPoolExecutor()
-    executor_ref = weakref.ref(executor)
+    executor_ref = weakref.ref(executor, callback)
     f = executor.submit(simple_delay_return, wait=1)
     del executor
     gc.collect()
-    time.sleep(0.5)  # executor may not be deleted immediately
+    deleted_event.wait(timeout=3.0)
+    assert deleted_event.is_set()
     assert executor_ref() is None
     assert f.result() == 1
+
+
+def test_high_concurrency():
+    results = []
+    futures = []
+    with AsyncPoolExecutor(
+        max_workers=100,
+        idle_timeout=0.5,
+    ) as executor:
+        for i in range(1000):
+            futures.append(executor.submit(simple_delay_return, n=i, wait=0.05))
+
+        for i in range(1000):
+            results.append(futures[i].result())
+
+        assert len(set(results)) == 1000
+        assert sum(results) == 499500
+        assert wait_for_alive_threads(executor, 0, 3.0) == 0
+
+
+asgiref_installed = find_spec("asgiref") is not None
+
+
+@pytest.mark.skipif(asgiref_installed, reason="asgiref is installed")
+def test_prohibit_sync_function():
+    with pytest.raises(TypeError):
+        AsyncPoolExecutor().submit(lambda: 1)
+
+
+@pytest.mark.skipif(not asgiref_installed, reason="asgiref is installed")
+def test_allow_async_function():
+    with AsyncPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(lambda: 1)
+        assert future.result() == 1
