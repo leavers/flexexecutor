@@ -1,3 +1,11 @@
+"""
+Flexexecutor provides executors that can automatically scale the number of
+workers up and down.
+
+Copyright (c) 2020-2024, Leavers.
+License: MIT
+"""
+
 import asyncio
 import atexit
 import itertools

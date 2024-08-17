@@ -1,37 +1,72 @@
 import os
+import re
+import sys
+from functools import lru_cache
+from typing import Any, Dict
 
 import nox
 from nox import Session
 from nox.command import CommandFailed
+from rtoml import load
 
-PYTHON_BASE_VERSION = "3.8"
-AUTOFLAKE_VERSION = "2.2.1"
-RUFF_VERSION = "0.1.9"
-MYPY_VERSION = "1.8.0"
-BUILD_VERSION = "1.0.3"
-TWINE_VERSION = "4.0.2"
 
-SOURCE = "flexexecutor"
-SOURCE_PATH = f"{SOURCE}.py"
-NOXFILE_PATH = "noxfile.py"
-TEST_DIR = "tests"
+os.environ.update({"PDM_IGNORE_SAVED_PYTHON": "1"})
+
+
+@lru_cache(maxsize=1)
+def get_pyproject_toml() -> Dict[str, Any]:
+    with open("pyproject.toml") as fp:
+        return load(fp)
+
+
+@lru_cache(maxsize=1)
+def get_python_version() -> str:
+    pyproject = get_pyproject_toml()
+    if m := re.search(r">=\s*(\d+(\.\d+)*)", pyproject["project"]["requires-python"]):
+        return m.group(1)
+    else:
+        return f"{sys.version_info.major}.{sys.version_info.minor}"
+
+
+@lru_cache(maxsize=1)
+def get_dev_dependencies() -> Dict[str, str]:
+    pyproject = get_pyproject_toml()
+    pat = re.compile(r"[ <>~=]")
+    dev_deps: Dict[str, str] = {}
+    for dep in pyproject["tool"]["pdm"]["dev-dependencies"]["dev"]:
+        sep = -1
+        for m in pat.finditer(dep):
+            sep = m.span()[0]
+            break
+        if sep == -1:
+            dev_deps[dep] = dep
+        else:
+            dev_deps[dep[:sep]] = dep
+    return dev_deps
+
+
+PYTHON_VERSION = get_python_version()
+AUTOFLAKE_VERSION = get_dev_dependencies()["autoflake"]
+MYPY_VERSION = get_dev_dependencies()["mypy"]
+RUFF_VERSION = get_dev_dependencies()["ruff"]
+SOURCES = ["flexexecutor.py", "noxfile.py", "tests"]
 
 
 @nox.session(python=False)
 def shell_completion(session: Session):
     shell = os.getenv("SHELL")
     if shell is None or "bash" in shell:
-        session.run("echo", 'eval "$(register-python-argcomplete nox)"')
+        session.log('eval "$(register-python-argcomplete nox)"')
     elif "zsh" in shell:
-        session.run("echo", "autoload -U bashcompinit")
-        session.run("echo", "bashcompinit")
-        session.run("echo", 'eval "$(register-python-argcomplete nox)"')
+        session.log("autoload -U bashcompinit")
+        session.log("bashcompinit")
+        session.log('eval "$(register-python-argcomplete nox)"')
     elif "tcsh" in shell:
-        session.run("echo", "eval `register-python-argcomplete --shell tcsh nox`")
+        session.log("eval `register-python-argcomplete --shell tcsh nox`")
     elif "fish" in shell:
-        session.run("echo", "register-python-argcomplete --shell fish nox | .")
+        session.log("register-python-argcomplete --shell fish nox | .")
     else:
-        session.run("echo", 'eval "$(register-python-argcomplete nox)"')
+        session.log('eval "$(register-python-argcomplete nox)"')
 
 
 @nox.session(python=False)
@@ -48,22 +83,21 @@ def clean(session: Session):
         "html_cov",
         "html_doc",
         "logs",
+        external=True,
     )
     session.run(
         "sh",
         "-c",
         "find . | grep -E '(__pycache__|\.pyc|\.pyo$$)' | xargs rm -rf",
+        external=True,
     )
 
 
-@nox.session(python="3.8", reuse_venv=True)
+@nox.session(python=PYTHON_VERSION, reuse_venv=True)
 @nox.parametrize("autoflake", [AUTOFLAKE_VERSION])
 @nox.parametrize("ruff", [RUFF_VERSION])
 def format(session: Session, autoflake: str, ruff: str):
-    session.install(
-        f"autoflake~={autoflake}",
-        f"ruff~={ruff}",
-    )
+    session.install(autoflake, ruff)
     try:
         session.run("taplo", "fmt", "pyproject.toml", external=True)
     except CommandFailed:
@@ -73,19 +107,16 @@ def format(session: Session, autoflake: str, ruff: str):
             "`taplo`)"
         )
     session.run("autoflake", "--version")
-    session.run("autoflake", SOURCE_PATH, NOXFILE_PATH, TEST_DIR)
+    session.run("autoflake", *SOURCES)
     session.run("ruff", "--version")
-    session.run("ruff", "format", SOURCE_PATH, NOXFILE_PATH, TEST_DIR)
+    session.run("ruff", "format", *SOURCES)
 
 
-@nox.session(python="3.8", reuse_venv=True)
+@nox.session(python=PYTHON_VERSION, reuse_venv=True)
 @nox.parametrize("autoflake", [AUTOFLAKE_VERSION])
 @nox.parametrize("ruff", [RUFF_VERSION])
 def format_check(session: Session, autoflake: str, ruff: str):
-    session.install(
-        f"autoflake~={autoflake}",
-        f"ruff~={ruff}",
-    )
+    session.install(autoflake, ruff)
     try:
         session.run("taplo", "check", "pyproject.toml", external=True)
     except CommandFailed:
@@ -95,20 +126,12 @@ def format_check(session: Session, autoflake: str, ruff: str):
             "`taplo`)"
         )
     session.run("autoflake", "--version")
-    session.run("autoflake", "--check-diff", SOURCE_PATH, NOXFILE_PATH, TEST_DIR)
+    session.run("autoflake", "--check-diff", *SOURCES)
     session.run("ruff", "--version")
-    session.run(
-        "ruff",
-        "format",
-        "--check",
-        "--diff",
-        SOURCE_PATH,
-        NOXFILE_PATH,
-        TEST_DIR,
-    )
+    session.run("ruff", "format", "--check", "--diff", *SOURCES)
 
 
-@nox.session(python="3.8", reuse_venv=True)
+@nox.session(python=PYTHON_VERSION, reuse_venv=True)
 @nox.parametrize("mypy", [MYPY_VERSION])
 def mypy(session: Session, mypy: str):
     session.install(f"mypy~={mypy}")
@@ -118,7 +141,7 @@ def mypy(session: Session, mypy: str):
         "\"AttributeError: attribute 'TypeInfo' of '_fullname' undefined\", "
         "please try to execute `rm -rf .mypy_cache`"
     )
-    session.run("mypy", SOURCE_PATH, NOXFILE_PATH)
+    session.run("mypy", "flexexecutor.py", "noxfile.py")
 
 
 @nox.session(python=False)
@@ -126,7 +149,7 @@ def test(session: Session):
     session.run(
         "pytest",
         "--cov",
-        SOURCE,
+        "flexexecutor.py",
         "--cov-report",
         "term-missing",
         "--cov-report",
@@ -135,7 +158,7 @@ def test(session: Session):
         "xml:.nox/coverage.xml",
         "--cov-config",
         "pyproject.toml",
-        TEST_DIR,
+        "tests",
     )
 
 
@@ -165,7 +188,7 @@ def test_all(session: Session):
     session.run(
         "pytest",
         "--cov",
-        SOURCE,
+        "flexexecutor.py",
         "--cov-report",
         "term-missing",
         "--cov-report",
@@ -174,24 +197,5 @@ def test_all(session: Session):
         "xml:.nox/coverage.xml",
         "--cov-config",
         "pyproject.toml",
-        TEST_DIR,
+        "tests",
     )
-
-
-@nox.session(python="3.8", reuse_venv=True)
-@nox.parametrize("build", [BUILD_VERSION])
-@nox.parametrize("twine", [TWINE_VERSION])
-def publish(
-    session: Session,
-    build: str,
-    twine: str,
-):
-    session.install(
-        f"build~={build}",
-        f"twine~={twine}",
-    )
-
-    clean(session)
-    session.run("python", "-m", "build")
-    session.run("twine", "check", "dist/*")
-    session.run("twine", "upload", "--skip-existing", "dist/*")
