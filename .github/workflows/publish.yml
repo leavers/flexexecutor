@@ -14,8 +14,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  pypi-publish:
-    name: upload release to PyPI
+  pypi-github-publish:
+    name: Publish to PyPI and GitHub Release
     runs-on: ubuntu-latest
     # Specifying a GitHub environment is optional, but strongly encouraged
     environment: release
