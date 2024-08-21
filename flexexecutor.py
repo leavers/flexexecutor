@@ -1,3 +1,11 @@
+"""
+Flexexecutor provides executors that can automatically scale the number of
+workers up and down.
+
+Copyright (c) 2020-2024, Leavers.
+License: MIT
+"""
+
 import asyncio
 import atexit
 import itertools
@@ -19,7 +27,7 @@ __all__ = (
     "ThreadPoolExecutor",
 )
 
-__version__ = "0.0.9"
+__version__ = "0.0.10"
 
 _threads_queues = WeakKeyDictionary()  # type: ignore
 _shutdown = False
