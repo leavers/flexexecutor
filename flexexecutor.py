@@ -27,7 +27,7 @@ __all__ = (
     "ThreadPoolExecutor",
 )
 
-__version__ = "0.0.10"
+__version__ = "0.0.11"
 
 _threads_queues = WeakKeyDictionary()  # type: ignore
 _shutdown = False
