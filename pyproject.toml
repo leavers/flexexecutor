@@ -31,6 +31,10 @@ homepage = "https://github.com/leavers/flexexecutor"
 documentation = "https://github.com/leavers/flexexecutor/blob/main/README.md"
 # changelog = "URL of changelog"
 
+[project.optional-dependencies]
+extra = [
+    "asgiref>=3.8.1",
+]
 [build-system]
 requires = ["pdm-backend"]
 build-backend = "pdm.backend"
@@ -48,17 +52,17 @@ path = "flexexecutor.py"
 
 [tool.pdm.dev-dependencies]
 dev = [
-  "autoflake>=2.3.1",
-  "coverage[toml]>=7.6.1",
-  "mypy>=1.11.1",
-  "nox>=2024.4.15",
-  "pytest>=8.3.2",
-  "pytest-asyncio>=0.23.8",
-  "pytest-cov>=5.0.0",
-  "pytest-mock>=3.14.0",
-  "pytest-timeout>=2.3.1",
-  "ruoml>=0.11.0",
-  "ruff>=0.6.1",
+    "autoflake>=2.3.1",
+    "coverage[toml]>=7.6.1",
+    "mypy>=1.11.1",
+    "nox>=2024.4.15",
+    "pytest>=8.3.2",
+    "pytest-asyncio>=0.23.8",
+    "pytest-cov>=5.0.0",
+    "pytest-mock>=3.14.0",
+    "pytest-timeout>=2.3.1",
+    "ruff>=0.6.1",
+    "typing-extensions>=4.12.2",
 ]
 
 [tool.autoflake]

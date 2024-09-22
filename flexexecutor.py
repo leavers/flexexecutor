@@ -16,7 +16,14 @@ from inspect import iscoroutinefunction
 from queue import Empty
 from threading import Event, Lock, Thread
 from time import monotonic
+from typing import TYPE_CHECKING
 from weakref import WeakKeyDictionary, ref
+
+if TYPE_CHECKING:
+    from typing_extensions import Callable, ParamSpec, Set, TypeVar
+
+    P = ParamSpec("P")
+    T = TypeVar("T")
 
 __all__ = (
     "__version__",
@@ -46,6 +53,23 @@ def _python_exit():
 
 
 atexit.register(_python_exit)
+
+
+__is_asgiref_installed = None
+
+
+def _is_asgiref_installed():
+    global __is_asgiref_installed
+    if __is_asgiref_installed is not None:
+        return __is_asgiref_installed
+
+    from importlib.util import find_spec
+
+    if find_spec("asgiref") is not None:
+        __is_asgiref_installed = True
+    else:
+        __is_asgiref_installed = False
+    return __is_asgiref_installed
 
 
 def _worker(executor_ref, work_queue, initializer, initargs, idle_timeout):
@@ -129,7 +153,12 @@ class ThreadPoolExecutor(_ThreadPoolExecutor):
         else:
             self._idle_timeout = max(0.1, idle_timeout)
 
-    def submit(self, fn, /, *args, **kwargs):
+    def submit(
+        self,
+        fn: "Callable[P, T]",
+        *args: "P.args",
+        **kwargs: "P.kwargs",
+    ) -> "Future":
         if iscoroutinefunction(fn):
             raise TypeError("fn must not be a coroutine function")
 
@@ -186,7 +215,6 @@ class ThreadPoolExecutor(_ThreadPoolExecutor):
 class _AsyncWorkItem(_WorkItem):
     async def run(self):
         if not self.future.set_running_or_notify_cancel():
-            print("cancelled")
             return
 
         try:
@@ -221,7 +249,7 @@ async def _async_worker(
             return
 
     idle_tick = monotonic()
-    curr_tasks = set()
+    curr_tasks: "Set[asyncio.Task]" = set()
     loop = asyncio.get_running_loop()
     asleep = asyncio.sleep
 
@@ -339,7 +367,12 @@ class AsyncPoolExecutor(ThreadPoolExecutor):
         else:
             self._idle_timeout = max(0.1, idle_timeout)
 
-    def submit(self, fn, /, *args, **kwargs):
+    def submit(
+        self,
+        fn: "Callable[P, T]",
+        *args: "P.args",
+        **kwargs: "P.kwargs",
+    ) -> "Future":
         if not iscoroutinefunction(fn):
             raise TypeError("fn must be a coroutine function")
         with self._shutdown_lock, _global_shutdown_lock:
