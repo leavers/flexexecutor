@@ -33,7 +33,7 @@ def get_dev_dependencies() -> Dict[str, str]:
     pyproject = get_pyproject_toml()
     pat = re.compile(r"[ <>~=]")
     dev_deps: Dict[str, str] = {}
-    for dep in pyproject["tool"]["pdm"]["dev-dependencies"]["dev"]:
+    for dep in pyproject["dependency-groups"]["dev"]:
         sep = -1
         for m in pat.finditer(dep):
             sep = m.span()[0]
