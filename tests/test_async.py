@@ -1,6 +1,5 @@
 import asyncio
 import threading
-import time
 from concurrent.futures.thread import BrokenThreadPool
 
 import pytest
