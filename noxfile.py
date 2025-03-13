@@ -7,7 +7,11 @@ from typing import Any, Dict
 import nox
 from nox import Session
 from nox.command import CommandFailed
-from rtoml import load
+
+if sys.version_info < (3, 11):
+    from tomli import load
+else:
+    from tomllib import load
 
 
 os.environ.update({"PDM_IGNORE_SAVED_PYTHON": "1"})
@@ -15,7 +19,7 @@ os.environ.update({"PDM_IGNORE_SAVED_PYTHON": "1"})
 
 @lru_cache(maxsize=1)
 def get_pyproject_toml() -> Dict[str, Any]:
-    with open("pyproject.toml") as fp:
+    with open("pyproject.toml", mode="rb") as fp:
         return load(fp)
 
 
@@ -175,7 +179,7 @@ def test_for_ci(session: Session):
     test(session)
 
 
-@nox.session(python=["3.6", "3.8", "3.10", "3.11", "3.12"], reuse_venv=True)
+@nox.session(python=["3.6", "3.8", "3.10", "3.11", "3.12", "3.13"], reuse_venv=True)
 def test_all(session: Session):
     session.install(
         "coverage[toml]",
