@@ -9,12 +9,14 @@ License: MIT
 import asyncio
 import atexit
 import itertools
+from asyncio import AbstractEventLoop
+from asyncio import Queue as AsyncQueue
 from concurrent.futures import Future, ProcessPoolExecutor, _base
 from concurrent.futures.thread import BrokenThreadPool, _WorkItem
 from concurrent.futures.thread import ThreadPoolExecutor as _ThreadPoolExecutor
 from inspect import iscoroutinefunction
-from queue import Empty
-from threading import Event, Lock, Thread
+from queue import SimpleQueue, Empty
+from threading import Lock, Thread
 from time import monotonic
 from typing import TYPE_CHECKING
 from weakref import WeakKeyDictionary, ref
@@ -36,6 +38,8 @@ __all__ = (
 
 __version__ = "0.0.11"
 
+_AsyncComponent = tuple[AbstractEventLoop, AsyncQueue[_WorkItem | None]]
+_async_components = WeakKeyDictionary()
 _threads_queues = WeakKeyDictionary()  # type: ignore
 _shutdown = False
 _global_shutdown_lock = Lock()
@@ -45,10 +49,21 @@ def _python_exit():
     global _shutdown
     with _global_shutdown_lock:
         _shutdown = True
-    items = list(_threads_queues.items())
-    for t, q in items:
+
+    threads_items = list(_threads_queues.items())
+    for t, q in threads_items:
         q.put(None)
-    for t, q in items:
+
+    if async_components := list(_async_components.items()):
+        mainloop = asyncio.get_running_loop()
+        for t, (loop, queue) in async_components:
+            mainloop.run_until_complete(
+                loop.call_soon_threadsafe(queue.put_nowait, None)
+            )
+
+    for t, q in threads_items:
+        t.join()
+    for t, q in async_components:
         t.join()
 
 
@@ -228,30 +243,26 @@ class _AsyncWorkItem(_WorkItem):
 
 async def _async_worker(
     executor_ref,
-    work_queue,
+    ctrl_queue,
     initializer,
     initargs,
     max_workers,
     idle_timeout,
 ):
-    executor = executor_ref()
-    if executor is not None:
-        executor._running.set()
-
     if initializer is not None:
         try:
             initializer(*initargs)
         except BaseException:
             _base.LOGGER.critical("Exception in initializer:", exc_info=True)
-            if executor is not None:  # pragma: no cover
-                executor._running.set()
+            if (executor := executor_ref()) is not None:  # pragma: no cover
                 executor._initializer_failed()
             return
 
     idle_tick = monotonic()
     curr_tasks: "Set[asyncio.Task]" = set()
     loop = asyncio.get_running_loop()
-    asleep = asyncio.sleep
+    queue = AsyncQueue()
+    ctrl_queue.put((loop, queue))
 
     try:
         while True:
@@ -259,17 +270,15 @@ async def _async_worker(
                 break
             if len(curr_tasks) < max_workers:
                 try:
-                    work_item = work_queue.get(block=True, timeout=0.1)
+                    work_item = await asyncio.wait_for(queue.get(), 0.1)
                     if work_item is not None:
                         task = loop.create_task(work_item.run())
                         curr_tasks.add(task)
-                        await asleep(0)
                         del work_item
                     else:
                         break
-                except Empty:
+                except (Empty, TimeoutError):
                     pass
-            await asleep(0)
             finished_tasks = [t for t in curr_tasks if t.done()]
             for t in finished_tasks:
                 curr_tasks.remove(t)
@@ -277,18 +286,12 @@ async def _async_worker(
                 idle_tick = monotonic()
     finally:
         while curr_tasks:
-            await asleep(0)
             finished_tasks = [t for t in curr_tasks if t.done()]
             for t in finished_tasks:
                 curr_tasks.remove(t)
-        executor = executor_ref()
-        if executor is None:
-            work_queue.put(None)
-        else:
-            executor._running.clear()
+        if (executor := executor_ref()) is not None:
             if _shutdown or executor._shutdown:
                 executor._shutdown = True
-                work_queue.put(None)
         del executor
 
 
@@ -297,7 +300,7 @@ class AsyncWorker(Thread):
         self,
         name,
         executor_ref,
-        work_queue,
+        ctrl_queue,
         initializer,
         initargs,
         max_workers,
@@ -305,7 +308,7 @@ class AsyncWorker(Thread):
     ):
         super().__init__(name=name)
         self._executor_ref = executor_ref
-        self._work_queue = work_queue
+        self._ctrl_queue = ctrl_queue
         self._initializer = initializer
         self._initargs = initargs
         self._max_workers = max_workers
@@ -316,7 +319,7 @@ class AsyncWorker(Thread):
         loop.run_until_complete(
             _async_worker(
                 self._executor_ref,
-                self._work_queue,
+                self._ctrl_queue,
                 self._initializer,
                 self._initargs,
                 self._max_workers,
@@ -361,7 +364,13 @@ class AsyncPoolExecutor(ThreadPoolExecutor):
             thread_name_prefix = f"AsyncPoolExecutor-{self._counter()}"  # type: ignore
         super().__init__(max_workers, thread_name_prefix, initializer, initargs)
         del self._idle_semaphore
-        self._running = Event()
+        # TODO: self._work_queue is not used in AsyncPoolExecutor, but it cannot be
+        #       deleted since self._initializer_failed() and self.shutdown() still use
+        #       it. They are both methods from ThreadPoolExecutor. Maybe make
+        #       AsyncPoolExecutor inherit from Executor directly is a better way.
+        # del self._work_queue
+        self._ctrl_queue: SimpleQueue[_AsyncComponent | None] = SimpleQueue()
+        self._comp: _AsyncComponent | None = None
         if idle_timeout is None or idle_timeout < 0:
             self._idle_timeout = -1
         else:
@@ -387,28 +396,32 @@ class AsyncPoolExecutor(ThreadPoolExecutor):
                     "cannot schedule new futures after interpreter shutdown"
                 )
 
+            self._adjust_thread_count()
+            if self._comp is None:
+                raise RuntimeError("failed to start async worker")
+
             f = Future()  # type: ignore
             w = _AsyncWorkItem(f, fn, args, kwargs)
+            loop, queue = self._comp
+            loop.call_soon_threadsafe(queue.put_nowait, w)
 
-            self._work_queue.put(w)
-            self._adjust_thread_count()
             return f
 
     submit.__doc__ = _base.Executor.submit.__doc__
 
     def _adjust_thread_count(self):
-        if self._running.is_set():
+        if self._comp is not None:
             return
         threads = self._threads
         threads.clear()  # type: ignore
 
-        def weakref_cb(_, q=self._work_queue):
+        def weakref_cb(_, q=self._ctrl_queue):
             q.put(None)
 
         w = AsyncWorker(
             f"{self._thread_name_prefix or self}_0",
             ref(self, weakref_cb),
-            self._work_queue,
+            self._ctrl_queue,
             self._initializer,
             self._initargs,
             self._max_workers,
@@ -416,4 +429,11 @@ class AsyncPoolExecutor(ThreadPoolExecutor):
         )
         w.start()
         threads.add(w)  # type: ignore
-        _threads_queues[w] = self._work_queue
+        self._comp = self._ctrl_queue.get()
+
+    def shutdown(self, wait=True, *, cancel_futures=False):
+        if self._comp is not None:
+            loop, queue = self._comp
+            loop.call_soon_threadsafe(queue.put_nowait, None)
+        super().shutdown(wait=wait, cancel_futures=cancel_futures)
+        self._comp = None
