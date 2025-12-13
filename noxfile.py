@@ -135,7 +135,7 @@ def format_check(session: Session, autoflake: str, ruff: str):
 @nox.session(python=PYTHON_VERSION, reuse_venv=True)
 @nox.parametrize("ty", [TY_VERSION])
 def ty(session: Session, ty: str):
-    session.install(f"ty~={ty}")
+    session.install(ty)
     session.run("ty", "--version")
     session.run("ty", "check", "flexexecutor.py", "noxfile.py")
 
