@@ -2,16 +2,13 @@ import os
 import re
 import sys
 from functools import lru_cache
+from tomllib import load
 from typing import Any, Dict
 
 import nox
 from nox import Session
 from nox.command import CommandFailed
 
-if sys.version_info < (3, 11):
-    from tomli import load
-else:
-    from tomllib import load
 
 
 os.environ.update({"PDM_IGNORE_SAVED_PYTHON": "1"})
@@ -51,7 +48,7 @@ def get_dev_dependencies() -> Dict[str, str]:
 
 PYTHON_VERSION = get_python_version()
 AUTOFLAKE_VERSION = get_dev_dependencies()["autoflake"]
-MYPY_VERSION = get_dev_dependencies()["mypy"]
+TY_VERSION = get_dev_dependencies()["ty"]
 RUFF_VERSION = get_dev_dependencies()["ruff"]
 SOURCES = ["flexexecutor.py", "noxfile.py", "tests"]
 
@@ -92,7 +89,7 @@ def clean(session: Session):
     session.run(
         "sh",
         "-c",
-        "find . | grep -E '(__pycache__|\.pyc|\.pyo$$)' | xargs rm -rf",
+        "find . | grep -E '(__pycache__|\\.pyc|\\.pyo$$)' | xargs rm -rf",
         external=True,
     )
 
@@ -136,16 +133,11 @@ def format_check(session: Session, autoflake: str, ruff: str):
 
 
 @nox.session(python=PYTHON_VERSION, reuse_venv=True)
-@nox.parametrize("mypy", [MYPY_VERSION])
-def mypy(session: Session, mypy: str):
-    session.install(f"mypy~={mypy}")
-    session.run("mypy", "--version")
-    session.log(
-        "If you encountered "
-        "\"AttributeError: attribute 'TypeInfo' of '_fullname' undefined\", "
-        "please try to execute `rm -rf .mypy_cache`"
-    )
-    session.run("mypy", "flexexecutor.py", "noxfile.py")
+@nox.parametrize("ty", [TY_VERSION])
+def ty(session: Session, ty: str):
+    session.install(ty)
+    session.run("ty", "--version")
+    session.run("ty", "check", "flexexecutor.py", "noxfile.py")
 
 
 @nox.session(python=False)
@@ -179,7 +171,7 @@ def test_for_ci(session: Session):
     test(session)
 
 
-@nox.session(python=["3.6", "3.8", "3.10", "3.11", "3.12", "3.13"], reuse_venv=True)
+@nox.session(python=["3.11", "3.12", "3.13"], reuse_venv=True)
 def test_all(session: Session):
     session.install(
         "coverage[toml]",

@@ -1,17 +1,17 @@
 import time
-from typing import Union
 
 from flexexecutor import AsyncPoolExecutor, ThreadPoolExecutor
 
-AnyPoolExecutor = Union[AsyncPoolExecutor, ThreadPoolExecutor]
-
-
-def alive_threads(executor: AnyPoolExecutor):
-    return [t for t in executor._threads if t.is_alive()]
+def alive_threads(executor: AsyncPoolExecutor | ThreadPoolExecutor):
+    if isinstance(executor, AsyncPoolExecutor):
+        threads = [executor._thread] if executor._thread is not None else []
+    else:
+        threads = list(executor._threads)
+    return [t for t in threads if t.is_alive()]
 
 
 def wait_for_alive_threads(
-    executor: AnyPoolExecutor,
+    executor: AsyncPoolExecutor | ThreadPoolExecutor,
     expect: int,
     timeout: float,
 ) -> int:
