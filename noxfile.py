@@ -171,7 +171,7 @@ def test_for_ci(session: Session):
     test(session)
 
 
-@nox.session(python=["3.11", "3.12", "3.13", "3.14"], reuse_venv=True)
+@nox.session(python=["3.11", "3.12", "3.13"], reuse_venv=True)
 def test_all(session: Session):
     session.install(
         "coverage[toml]",

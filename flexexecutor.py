@@ -165,6 +165,7 @@ class ThreadPoolExecutor(_ThreadPoolExecutor):
                 )
 
             f = Future()  # type: ignore
+            # FIXME: _WorkItem's signature changed in Python 3.14
             w = _WorkItem(f, fn, args, kwargs)
 
             self._work_queue.put(w)
