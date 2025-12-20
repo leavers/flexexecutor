@@ -10,7 +10,6 @@ from nox import Session
 from nox.command import CommandFailed
 
 
-
 os.environ.update({"PDM_IGNORE_SAVED_PYTHON": "1"})
 
 
