@@ -9,15 +9,16 @@ License: MIT
 import asyncio
 import atexit
 import itertools
+import queue
+import types
 from asyncio import AbstractEventLoop
 from asyncio import Queue as AsyncQueue
 from asyncio.timeouts import timeout
 from concurrent.futures import Future, ProcessPoolExecutor, _base
-from concurrent.futures.thread import BrokenThreadPool, _WorkItem
-from concurrent.futures.thread import ThreadPoolExecutor as _ThreadPoolExecutor
+from concurrent.futures.thread import BrokenThreadPool
 from inspect import iscoroutinefunction
 from queue import Empty
-from threading import Event, Lock, Thread
+from threading import Event, Lock, Semaphore, Thread
 from time import monotonic
 from typing import TYPE_CHECKING
 from weakref import WeakKeyDictionary, ref, WeakSet
@@ -39,9 +40,11 @@ __all__ = (
 
 __version__ = "0.0.12"
 
-_AsyncComponent = tuple[AbstractEventLoop, AsyncQueue[_WorkItem | None]]
-_threads_queues = WeakKeyDictionary()  # type: ignore
-_async_executors = WeakSet()  # type: ignore
+# Type alias for async component (loop, queue) tuple
+_AsyncComponent = tuple[AbstractEventLoop, "AsyncQueue[_AsyncWorkItem | None]"]
+
+_threads_queues: WeakKeyDictionary[Thread, queue.SimpleQueue] = WeakKeyDictionary()
+_async_executors: WeakSet["AsyncPoolExecutor"] = WeakSet()
 _shutdown = False
 _global_shutdown_lock = Lock()
 
@@ -64,7 +67,33 @@ def _python_exit():
 atexit.register(_python_exit)
 
 
+class _WorkItem:
+    """A work item for the thread pool executor."""
+
+    def __init__(self, future: Future, fn, args, kwargs):
+        self.future = future
+        self.fn = fn
+        self.args = args
+        self.kwargs = kwargs
+
+    def run(self):
+        if not self.future.set_running_or_notify_cancel():
+            return
+
+        try:
+            result = self.fn(*self.args, **self.kwargs)
+        except BaseException as exc:
+            self.future.set_exception(exc)
+            # Break a reference cycle with the exception 'exc'
+            self = None  # noqa: F841
+        else:
+            self.future.set_result(result)
+
+    __class_getitem__ = classmethod(types.GenericAlias)
+
+
 def _worker(executor_ref, work_queue, initializer, initargs, idle_timeout):
+    """Worker function for the thread pool executor with idle timeout support."""
     if initializer is not None:
         try:
             initializer(*initargs)
@@ -79,21 +108,24 @@ def _worker(executor_ref, work_queue, initializer, initargs, idle_timeout):
     try:
         while True:
             try:
-                if (work_item := work_queue.get(block=True, timeout=0.1)) is None:
-                    break
-
-                work_item.run()
-                del work_item
-
-                executor = executor_ref()
-                if executor is not None:
-                    executor._idle_semaphore.release()
-                del executor
-                idle_tick = monotonic()
+                work_item = work_queue.get(block=True, timeout=0.1)
             except Empty:
+                # Check idle timeout
                 if idle_timeout >= 0 and monotonic() - idle_tick > idle_timeout:
                     break
                 continue
+
+            if work_item is None:
+                break
+
+            work_item.run()
+            del work_item
+
+            executor = executor_ref()
+            if executor is not None:
+                executor._idle_semaphore.release()
+            del executor
+            idle_tick = monotonic()
     finally:
         executor = executor_ref()
         if executor is None:
@@ -106,14 +138,22 @@ def _worker(executor_ref, work_queue, initializer, initargs, idle_timeout):
         del executor
 
 
-class ThreadPoolExecutor(_ThreadPoolExecutor):
+class ThreadPoolExecutor(_base.Executor):
+    """A thread pool executor with automatic worker scaling and idle timeout.
+
+    This implementation is compatible with Python 3.11-3.14 and does not depend
+    on internal CPython APIs.
+    """
+
+    _counter = itertools.count().__next__
+
     def __init__(
         self,
-        max_workers=1024,
-        thread_name_prefix="",
+        max_workers: int | None = 1024,
+        thread_name_prefix: str = "",
         initializer=None,
         initargs=(),
-        idle_timeout=60.0,
+        idle_timeout: float | None = 60.0,
     ):
         """Initializes a new ThreadPoolExecutor instance.
 
@@ -127,7 +167,7 @@ class ThreadPoolExecutor(_ThreadPoolExecutor):
         :param initializer: A callable used to initialize worker threads.
 
         :type initargs: tuple, optional
-        :parm initargs: A tuple of arguments to pass to the initializer.
+        :param initargs: A tuple of arguments to pass to the initializer.
 
         :type idle_timeout: float, optional
         :param idle_timeout: The maximum amount of time (in seconds) that a worker
@@ -136,9 +176,27 @@ class ThreadPoolExecutor(_ThreadPoolExecutor):
         """
         if max_workers is None:
             max_workers = 1024
-        super().__init__(max_workers, thread_name_prefix, initializer, initargs)
+        if max_workers <= 0:
+            raise ValueError("max_workers must be greater than 0")
+
+        if initializer is not None and not callable(initializer):
+            raise TypeError("initializer must be a callable")
+
+        self._max_workers = max_workers
+        self._work_queue: queue.SimpleQueue[_WorkItem | None] = queue.SimpleQueue()
+        self._idle_semaphore = Semaphore(0)
+        self._threads: set[Thread] = set()
+        self._broken = False
+        self._shutdown = False
+        self._shutdown_lock = Lock()
+        self._thread_name_prefix = (
+            thread_name_prefix or f"ThreadPoolExecutor-{self._counter()}"
+        )
+        self._initializer = initializer
+        self._initargs = initargs
+
         if idle_timeout is None or idle_timeout < 0:
-            self._idle_timeout = -1
+            self._idle_timeout = -1.0
         else:
             self._idle_timeout = max(0.1, idle_timeout)
 
@@ -164,8 +222,7 @@ class ThreadPoolExecutor(_ThreadPoolExecutor):
                     "cannot schedule new futures after interpreter shutdown"
                 )
 
-            f = Future()  # type: ignore
-            # FIXME: _WorkItem's signature changed in Python 3.14
+            f: Future = Future()
             w = _WorkItem(f, fn, args, kwargs)
 
             self._work_queue.put(w)
@@ -175,20 +232,25 @@ class ThreadPoolExecutor(_ThreadPoolExecutor):
     submit.__doc__ = _base.Executor.submit.__doc__
 
     def _adjust_thread_count(self):
+        # If idle threads are available, don't spin new threads
         if self._idle_semaphore.acquire(timeout=0):
             return
+
+        # Remove dead threads
         threads = self._threads
         dead_threads = [t for t in threads if not t.is_alive()]
         for t in dead_threads:
-            threads.remove(t)  # type: ignore
+            threads.discard(t)
 
+        # When the executor gets lost, the weakref callback will wake up
+        # the worker threads.
         def weakref_cb(_, q=self._work_queue):
             q.put(None)
 
         num_threads = len(threads)
         if num_threads < self._max_workers:
             t = Thread(
-                name=f"{self._thread_name_prefix or self}_{num_threads}",
+                name=f"{self._thread_name_prefix}_{num_threads}",
                 target=_worker,
                 args=(
                     ref(self, weakref_cb),
@@ -199,8 +261,46 @@ class ThreadPoolExecutor(_ThreadPoolExecutor):
                 ),
             )
             t.start()
-            threads.add(t)  # type: ignore
+            threads.add(t)
             _threads_queues[t] = self._work_queue
+
+    def _initializer_failed(self):
+        with self._shutdown_lock:
+            self._broken = (
+                "A thread initializer failed, the thread pool is not usable anymore"
+            )
+            # Drain work queue and mark pending futures failed
+            while True:
+                try:
+                    work_item = self._work_queue.get_nowait()
+                except Empty:
+                    break
+                if work_item is not None:
+                    work_item.future.set_exception(BrokenThreadPool(self._broken))
+
+    def shutdown(self, wait: bool = True, *, cancel_futures: bool = False):
+        with self._shutdown_lock:
+            self._shutdown = True
+            if cancel_futures:
+                # Drain all work items from the queue, and then cancel their
+                # associated futures.
+                while True:
+                    try:
+                        work_item = self._work_queue.get_nowait()
+                    except Empty:
+                        break
+                    if work_item is not None:
+                        work_item.future.cancel()
+
+            # Send a wake-up to prevent threads calling
+            # _work_queue.get(block=True) from permanently blocking.
+            self._work_queue.put(None)
+
+        if wait:
+            for t in self._threads:
+                t.join()
+
+    shutdown.__doc__ = _base.Executor.shutdown.__doc__
 
 
 class _AsyncWorkItem(_WorkItem):

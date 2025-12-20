@@ -2,6 +2,7 @@ import time
 
 from flexexecutor import AsyncPoolExecutor, ThreadPoolExecutor
 
+
 def alive_threads(executor: AsyncPoolExecutor | ThreadPoolExecutor):
     if isinstance(executor, AsyncPoolExecutor):
         threads = [executor._thread] if executor._thread is not None else []
