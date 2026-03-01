@@ -2,7 +2,7 @@
 Flexexecutor provides executors that can automatically scale the number of
 workers up and down.
 
-Copyright (c) 2020-2024, Leavers.
+Copyright (c) 2020-2026, Leavers.
 License: MIT
 """
 

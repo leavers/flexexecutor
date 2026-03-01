@@ -202,3 +202,29 @@ def test_handle_executor_deleted_gracefully():
     del executor
     assert executor_ref() is None
     assert f.result() == 1
+
+
+@pytest.mark.asyncio
+async def test_run_in_executor():
+    """Test that ThreadPoolExecutor works with asyncio.run_in_executor."""
+    import asyncio
+
+    def sync_task(x: int, y: int) -> int:
+        time.sleep(0.05)
+        return x + y
+
+    with ThreadPoolExecutor(max_workers=4, idle_timeout=1.0) as executor:
+        loop = asyncio.get_running_loop()
+
+        # Test single task
+        result = await loop.run_in_executor(executor, sync_task, 1, 2)
+        assert result == 3
+
+        # Test multiple concurrent tasks
+        tasks = [loop.run_in_executor(executor, sync_task, i, i) for i in range(10)]
+        results = await asyncio.gather(*tasks)
+        assert results == [i + i for i in range(10)]
+
+        # Test that executor works correctly with asyncio default executor
+        result = await loop.run_in_executor(executor, lambda: "hello")
+        assert result == "hello"
