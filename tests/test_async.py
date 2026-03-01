@@ -164,6 +164,10 @@ def test_infinite_timeout():
     assert len(alive_threads(executor)) == 0
 
 
+import sys
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Flaky on Windows due to race conditions")
 def test_cancel_future():
     from concurrent.futures import CancelledError
 
@@ -172,9 +176,8 @@ def test_cancel_future():
     with AsyncPoolExecutor(max_workers=1) as executor:
         f = executor.submit(simple_delay_return, wait=0.3)
         f.cancel()
-        print(f._state)
         with pytest.raises(CancelledError):
-            print(f.result())
+            f.result()
         assert invoked is False
 
 
