@@ -70,6 +70,10 @@ if __name__ == "__main__":
 
 ### AsyncPoolExecutor
 
+`AsyncPoolExecutor` runs all coroutines in a dedicated worker thread with its own
+event loop. Note that **tasks are not executed in the thread where they are
+submitted** — they are sent to the internal worker thread for execution.
+
 ```python
 from flexexecutor import AsyncPoolExecutor
 
