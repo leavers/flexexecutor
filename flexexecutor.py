@@ -40,7 +40,7 @@ __all__ = (
     "WorkerContext",
 )
 
-__version__ = "0.0.12"
+__version__ = "0.0.13"
 
 # Type alias for async component (loop, queue) tuple
 _AsyncComponent = tuple[AbstractEventLoop, "AsyncQueue[_AsyncWorkItem | None]"]
