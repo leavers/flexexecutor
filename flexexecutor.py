@@ -74,7 +74,7 @@ class WorkerContext:
 
     This class provides a way to customize worker thread initialization,
     task execution, and cleanup. It is designed to be compatible with
-    Python 3.10+ and follows the design of Python 3.14's ThreadPoolExecutor.
+    Python 3.11+ and follows the design of Python 3.14's ThreadPoolExecutor.
 
     Example:
         class DatabaseContext(WorkerContext):
@@ -223,7 +223,7 @@ def _worker(
 class ThreadPoolExecutor(_base.Executor):
     """A thread pool executor with automatic worker scaling and idle timeout.
 
-    This implementation is compatible with Python 3.11-3.14 and does not depend
+    This implementation is compatible with Python 3.11-3.15 and does not depend
     on internal CPython APIs.
     """
 

@@ -163,7 +163,7 @@ pdm run nox -s clean
 
 ### Test Suite Workflow (`.github/workflows/test-suite.yml`)
 - Triggers: push to main, pull requests, manual dispatch
-- Matrix: Python 3.11, 3.12, 3.13, 3.14 on Windows, Ubuntu, macOS
+- Matrix: Python 3.11, 3.12, 3.13, 3.14, 3.15 (plus 3.13t, 3.14t, 3.15t free-threaded) on Windows, Ubuntu, macOS
 - Steps:
   1. Checkout code
   2. Setup Python
