@@ -183,7 +183,7 @@ pdm run nox -s clean
 
 - Version is defined in `flexexecutor.py` as `__version__`
 - PDM reads version from `flexexecutor.py` (configured in `pyproject.toml`)
-- Current version: `0.0.12`
+- Current version: `0.0.13`
 
 ## Dependencies
 
