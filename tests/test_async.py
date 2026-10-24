@@ -167,7 +167,9 @@ def test_infinite_timeout():
 import sys
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="Flaky on Windows due to race conditions")
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="Flaky on Windows due to race conditions"
+)
 def test_cancel_future():
     from concurrent.futures import CancelledError
 

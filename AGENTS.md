@@ -23,7 +23,7 @@ Flexexecutor is a Python library that provides `concurrent.futures.Executor` sub
 - **Build Backend**: `pdm-backend`
 - **Task Runner**: [Nox](https://nox.thea.codes/)
 - **Testing**: pytest, pytest-asyncio, pytest-cov, pytest-mock, pytest-timeout
-- **Linting**: ruff, autoflake, ty (type checker)
+- **Linting**: ruff, ty (type checker)
 - **CI/CD**: GitHub Actions
 
 ## Project Structure
@@ -78,7 +78,7 @@ pytest --cov flexexecutor.py --cov-report term-missing tests
 ### Code Formatting
 
 ```bash
-# Format code (autoflake + ruff)
+# Format code (ruff check --fix + ruff format)
 pdm run nox -s format
 
 # Check formatting without modifying files
@@ -105,7 +105,7 @@ pdm run nox -s clean
 - Maximum 88 characters (configured in `pyproject.toml` under `[tool.ruff]`)
 
 ### Import Style
-- Use `autoflake` to remove unused imports automatically
+- Use `ruff check --fix` to remove unused imports automatically
 - Group imports: stdlib first, then third-party, then local
 - Use `from typing import TYPE_CHECKING` for type-only imports
 
@@ -114,7 +114,7 @@ pdm run nox -s clean
 - Example pattern from the code:
   ```python
   if TYPE_CHECKING:
-      from typing_extensions import Callable, ParamSpec, TypeVar
+      from typing import Callable, ParamSpec, TypeVar
       P = ParamSpec("P")
       T = TypeVar("T")
   ```

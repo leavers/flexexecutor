@@ -46,14 +46,6 @@ excludes = ["tests"]
 source = "file"
 path = "flexexecutor.py"
 
-[tool.autoflake]
-in-place = true
-recursive = true
-remove-all-unused-imports = true
-ignore-init-module-imports = true
-remove-duplicate-keys = true
-remove-unused-variables = true
-
 [tool.coverage.run]
 branch = true
 source = ["flexexecutor.py"]
@@ -68,13 +60,10 @@ exclude_lines = ["pragma: no cover"]
 
 [tool.ruff]
 line-length = 88
+target-version = "py311"
 
-[tool.mypy]
-check_untyped_defs = true
-follow_imports = "error"
-ignore_missing_imports = true
-show_error_codes = true
-warn_unused_configs = true
+[tool.ruff.lint]
+select = ["F", "I"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "strict"
@@ -82,7 +71,6 @@ asyncio_mode = "strict"
 # use `pdm update --update-reuse` to update version specs
 [dependency-groups]
 dev = [
-  "autoflake>=2.3.1",
   "coverage[toml]>=7.6.1",
   "nox>=2024.4.15",
   "pytest>=8.3.2",
@@ -91,7 +79,6 @@ dev = [
   "pytest-mock>=3.14.0",
   "pytest-timeout>=2.3.1",
   "ruff>=0.9.10",
-  "typing-extensions>=4.12.2",
   "ty>=0.0.1a34",
   "python-lsp-server>=1.14.0",
 ]
