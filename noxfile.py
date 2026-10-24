@@ -9,7 +9,6 @@ import nox
 from nox import Session
 from nox.command import CommandFailed
 
-
 os.environ.update({"PDM_IGNORE_SAVED_PYTHON": "1"})
 
 
@@ -46,7 +45,6 @@ def get_dev_dependencies() -> Dict[str, str]:
 
 
 PYTHON_VERSION = get_python_version()
-AUTOFLAKE_VERSION = get_dev_dependencies()["autoflake"]
 TY_VERSION = get_dev_dependencies()["ty"]
 RUFF_VERSION = get_dev_dependencies()["ruff"]
 SOURCES = ["flexexecutor.py", "noxfile.py", "tests"]
@@ -94,10 +92,9 @@ def clean(session: Session):
 
 
 @nox.session(python=PYTHON_VERSION, reuse_venv=True)
-@nox.parametrize("autoflake", [AUTOFLAKE_VERSION])
 @nox.parametrize("ruff", [RUFF_VERSION])
-def format(session: Session, autoflake: str, ruff: str):
-    session.install(autoflake, ruff)
+def format(session: Session, ruff: str):
+    session.install(ruff)
     try:
         session.run("taplo", "fmt", "pyproject.toml", external=True)
     except CommandFailed:
@@ -106,17 +103,15 @@ def format(session: Session, autoflake: str, ruff: str):
             "(Refer to https://taplo.tamasfe.dev/ for information on how to install "
             "`taplo`)"
         )
-    session.run("autoflake", "--version")
-    session.run("autoflake", *SOURCES)
     session.run("ruff", "--version")
+    session.run("ruff", "check", "--fix", *SOURCES)
     session.run("ruff", "format", *SOURCES)
 
 
 @nox.session(python=PYTHON_VERSION, reuse_venv=True)
-@nox.parametrize("autoflake", [AUTOFLAKE_VERSION])
 @nox.parametrize("ruff", [RUFF_VERSION])
-def format_check(session: Session, autoflake: str, ruff: str):
-    session.install(autoflake, ruff)
+def format_check(session: Session, ruff: str):
+    session.install(ruff)
     try:
         session.run("taplo", "check", "pyproject.toml", external=True)
     except CommandFailed:
@@ -125,16 +120,15 @@ def format_check(session: Session, autoflake: str, ruff: str):
             "(Refer to https://taplo.tamasfe.dev/ for information on how to install "
             "`taplo`)"
         )
-    session.run("autoflake", "--version")
-    session.run("autoflake", "--check-diff", *SOURCES)
     session.run("ruff", "--version")
+    session.run("ruff", "check", *SOURCES)
     session.run("ruff", "format", "--check", "--diff", *SOURCES)
 
 
 @nox.session(python=PYTHON_VERSION, reuse_venv=True)
 @nox.parametrize("ty", [TY_VERSION])
 def ty(session: Session, ty: str):
-    session.install(ty)
+    session.install(ty, "nox")
     session.run("ty", "--version")
     session.run("ty", "check", "flexexecutor.py", "noxfile.py")
 

@@ -21,10 +21,10 @@ from queue import Empty
 from threading import Event, Lock, Semaphore, Thread
 from time import monotonic
 from typing import TYPE_CHECKING
-from weakref import WeakKeyDictionary, ref, WeakSet
+from weakref import WeakKeyDictionary, WeakSet, ref
 
 if TYPE_CHECKING:
-    from typing_extensions import Callable, ParamSpec, TypeVar
+    from typing import Callable, ParamSpec, TypeVar
 
     P = ParamSpec("P")
     T = TypeVar("T")
@@ -703,7 +703,7 @@ class AsyncPoolExecutor(_base.Executor):
                 raise BrokenThreadPool(self._broken)
             assert self._comp
 
-            f = Future()  # type: ignore
+            f = Future()
             task = self._resolve_work_item_task(fn, args, kwargs)
             w = _AsyncWorkItem(f, task)
             loop, work_queue = self._comp[0]
@@ -717,7 +717,7 @@ class AsyncPoolExecutor(_base.Executor):
         if self._thread_active.is_set():
             return
 
-        def weakref_cb(_, c=self._comp):
+        def weakref_cb(_, c: list[_AsyncComponent] = self._comp):
             if not c:
                 return
             loop, work_queue = c[0]
