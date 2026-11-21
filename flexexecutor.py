@@ -10,6 +10,7 @@ import asyncio
 import atexit
 import itertools
 import queue
+import sys
 import types
 from asyncio import AbstractEventLoop
 from asyncio import Queue as AsyncQueue
@@ -40,7 +41,10 @@ __all__ = (
     "WorkerContext",
 )
 
-__version__ = "0.0.13"
+__version__ = "0.0.14"
+
+# The stdlib only added the BROKEN hook and prepare_context(**ctxkwargs) in 3.14
+_PY314_PLUS = sys.version_info >= (3, 14)
 
 # Type alias for async component (loop, queue) tuple
 _AsyncComponent = tuple[AbstractEventLoop, "AsyncQueue[_AsyncWorkItem | None]"]
@@ -227,6 +231,9 @@ class ThreadPoolExecutor(_base.Executor):
     on internal CPython APIs.
     """
 
+    if _PY314_PLUS:
+        BROKEN = BrokenThreadPool
+
     _counter = itertools.count().__next__
 
     @classmethod
@@ -253,6 +260,7 @@ class ThreadPoolExecutor(_base.Executor):
         initializer=None,
         initargs=(),
         idle_timeout: float | None = 60.0,
+        **ctxkwargs,
     ):
         """Initializes a new ThreadPoolExecutor instance.
 
@@ -272,7 +280,13 @@ class ThreadPoolExecutor(_base.Executor):
         :param idle_timeout: The maximum amount of time (in seconds) that a worker
             thread can remain idle before it is terminated. If set to None or negative
             value, workers will never be terminated. Defaults to 60 seconds.
+
+        :param ctxkwargs: Additional keyword arguments passed to
+            ``cls.prepare_context()``. Only supported on Python 3.14+.
         """
+        if ctxkwargs and not _PY314_PLUS:
+            raise TypeError("ctxkwargs is only supported on Python 3.14+")
+
         if max_workers is None:
             max_workers = 1024
         if max_workers <= 0:
@@ -293,7 +307,7 @@ class ThreadPoolExecutor(_base.Executor):
         (
             self._create_worker_context,
             self._resolve_work_item_task,
-        ) = type(self).prepare_context(initializer, initargs)
+        ) = type(self).prepare_context(initializer, initargs, **ctxkwargs)
 
         if idle_timeout is None or idle_timeout < 0:
             self._idle_timeout = -1.0
@@ -312,7 +326,8 @@ class ThreadPoolExecutor(_base.Executor):
 
         with self._shutdown_lock, _global_shutdown_lock:
             if self._broken:
-                raise BrokenThreadPool(self._broken)
+                # BROKEN only exists on 3.14+, matching the stdlib API surface
+                raise getattr(self, "BROKEN", BrokenThreadPool)(self._broken)
 
             if self._shutdown:
                 raise RuntimeError("cannot schedule new futures after shutdown")
@@ -376,7 +391,9 @@ class ThreadPoolExecutor(_base.Executor):
                 except Empty:
                     break
                 if work_item is not None:
-                    work_item.future.set_exception(BrokenThreadPool(self._broken))
+                    work_item.future.set_exception(
+                        getattr(self, "BROKEN", BrokenThreadPool)(self._broken)
+                    )
 
     def shutdown(self, wait: bool = True, *, cancel_futures: bool = False):
         with self._shutdown_lock:
@@ -500,7 +517,7 @@ class _AsyncWorkItem:
         except BaseException as exc:
             self.future.set_exception(exc)
             # Break a reference cycle with the exception 'exc'
-            self = None  # noqa: F841
+            del self
         else:
             self.future.set_result(result)
 
