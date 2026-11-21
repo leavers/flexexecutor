@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Flexexecutor is a Python library that provides `concurrent.futures.Executor` subclasses with automatic worker scaling capabilities. Unlike the standard library's `ThreadPoolExecutor` and `ProcessPoolExecutor`, flexexecutor can shut down idle workers to save resources.
+Flexexecutor is a Python library that provides `concurrent.futures.Executor` subclasses with automatic worker scaling capabilities. Unlike the standard library's executors, flexexecutor can shut down idle workers to save resources.
 
 **Key Design Philosophy**: Single-file design (`flexexecutor.py`) - keeps the code clean and easy for hackers to directly take away and customize.
 
@@ -12,9 +12,11 @@ Flexexecutor is a Python library that provides `concurrent.futures.Executor` sub
 
 2. **AsyncPoolExecutor** - Coroutine-based concurrency. All coroutines run in a dedicated worker thread with its own event loop.
 
-3. **ProcessPoolExecutor** - Directly imported from `concurrent.futures` (built-in already has scaling).
+3. **ProcessPoolExecutor** - Process-based concurrency with idle timeout and `max_tasks_per_child` recycling. Derived from CPython 3.15 and compatible with the standard API.
 
-4. **WorkerContext / AsyncWorkerContext** - Classes for customizing worker initialization, task execution, and cleanup.
+4. **InterpreterPoolExecutor** - Subinterpreter-based concurrency on Python 3.14+; each worker has its own GIL. Supports idle timeout and `max_tasks_per_child`.
+
+5. **WorkerContext / AsyncWorkerContext** - Classes for customizing worker initialization, task execution, and cleanup.
 
 ## Technology Stack
 
@@ -30,7 +32,7 @@ Flexexecutor is a Python library that provides `concurrent.futures.Executor` sub
 
 ```
 flexexecutor/
-├── flexexecutor.py      # Main module (single file, ~811 lines)
+├── flexexecutor.py      # Main module (single file, ~2248 lines)
 ├── pyproject.toml       # Project configuration (PDM, tools config)
 ├── noxfile.py          # Task automation (format, test, lint)
 ├── pdm.lock            # Dependency lock file
@@ -134,6 +136,8 @@ pdm run nox -s clean
 ### Test Organization
 - `tests/test_thread.py` - Tests for `ThreadPoolExecutor`
 - `tests/test_async.py` - Tests for `AsyncPoolExecutor`
+- `tests/test_process.py` - Tests for `ProcessPoolExecutor`
+- `tests/test_interpreter.py` - Tests for `InterpreterPoolExecutor` (3.14+)
 - `tests/conftest.py` - Shared test utilities
 
 ### Test Patterns
@@ -156,6 +160,9 @@ pdm run nox -s clean
 - Initializer success/failure
 - Broken pool handling
 - Shutdown behavior (wait, cancel_futures)
+- Process start-method selection and `fork` rejection
+- `max_tasks_per_child` worker replacement
+- Interpreter isolation and error propagation (3.14+)
 - atexit handler
 - Executor deletion handling
 
@@ -183,7 +190,7 @@ pdm run nox -s clean
 
 - Version is defined in `flexexecutor.py` as `__version__`
 - PDM reads version from `flexexecutor.py` (configured in `pyproject.toml`)
-- Current version: `0.0.14`
+- Current version: `0.1.0`
 
 ## Dependencies
 
@@ -206,7 +213,7 @@ See `[dependency-groups.dev]` in `pyproject.toml` for the complete list.
 ### Adding a New Feature
 
 1. Implement in `flexexecutor.py`
-2. Add tests in `tests/test_thread.py` or `tests/test_async.py`
+2. Add tests in `tests/test_thread.py`, `tests/test_async.py`, `tests/test_process.py`, or `tests/test_interpreter.py`
 3. Run `pdm run nox -s format` to format code
 4. Run `pdm run nox -s ty` to check types
 5. Run `pdm run nox -s test` to run tests
@@ -218,8 +225,8 @@ See `[dependency-groups.dev]` in `pyproject.toml` for the complete list.
 2. Commit and push changes
 3. Create and push a git tag:
    ```bash
-   git tag v0.0.13
-   git push origin v0.0.13
+   git tag 0.1.0
+   git push origin 0.1.0
    ```
 4. GitHub Actions will automatically publish to PyPI and create a GitHub release
 
@@ -232,16 +239,30 @@ See `[dependency-groups.dev]` in `pyproject.toml` for the complete list.
    - Set to `None` or negative value to disable (workers never terminate)
    - Workers check timeout every 0.1 seconds
 
-3. **AsyncPoolExecutor Architecture**:
+3. **ProcessPoolExecutor Architecture**:
+   - Derived from CPython 3.15 `Lib/concurrent/futures/process.py`; internals are prefixed `_Process*` to avoid clashing with stdlib privates.
+   - A manager thread owns worker replacement and result handling; workers detect idle time and exit on their own.
+   - An active `idle_timeout` selects `forkserver` (Unix outside macOS) or `spawn` (Windows/macOS) when no context is supplied. Explicit `fork` with active idle timeout raises `ValueError`.
+   - `idle_timeout=None` preserves the platform default start method and never retires idle workers.
+   - `max_tasks_per_child` uses the same `exit_pid` retirement path; idle retirement only spawns a replacement when work is pending.
+
+4. **InterpreterPoolExecutor**:
+   - Only defined when `_PY314_PLUS` is true; names are conditionally added to `__all__`.
+   - Each worker runs in a subinterpreter with its own GIL; tasks, arguments and results are pickled.
+   - Based on flexexecutor's `ThreadPoolExecutor` worker loop, so `max_tasks_per_child` and `idle_timeout` work the same way.
+
+5. **AsyncPoolExecutor Architecture**:
    - Runs in a dedicated thread with its own event loop
    - Uses `asyncio.TaskGroup` for managing concurrent coroutines
    - Uses `asyncio.Semaphore` to limit concurrency
 
-4. **Python Exit Handler**: 
-   - `_python_exit()` is registered with `atexit`
+6. **Python Exit Handler**:
+   - `_python_exit()` is registered with `atexit` for thread/async executors
+   - `_process_python_exit()` is registered with `threading._register_atexit` for process executors
    - Ensures clean shutdown of all executors on interpreter exit
 
-5. **Compatibility**:
+7. **Compatibility**:
    - Python 3.11+ only
+   - `InterpreterPoolExecutor` requires Python 3.14+
    - Compatible with `asyncio.run_in_executor()`
    - Drop-in replacement for stdlib `ThreadPoolExecutor`

@@ -39,7 +39,7 @@ build-backend = "pdm.backend"
 distribution = true
 
 [tool.pdm.build]
-includes = ["flexexecutor.py"]
+includes = ["flexexecutor.py", "NOTICE", "LICENSE-PSF"]
 excludes = ["tests"]
 
 [tool.pdm.version]

@@ -1,0 +1,12 @@
+Flexexecutor includes code derived from CPython 3.15:
+
+- `Lib/concurrent/futures/process.py`
+- `Lib/concurrent/futures/interpreter.py`
+
+Copyright (c) 2001-2026 Python Software Foundation; All Rights Reserved.
+
+The derived code was adapted for flexexecutor: ProcessPoolExecutor internals
+were renamed with a `_Process` prefix, workers gained idle-timeout retirement,
+the manager thread gained idle-worker replacement, and InterpreterPoolExecutor
+was integrated with flexexecutor's worker context and ThreadPoolExecutor.
+See `LICENSE-PSF` for the Python Software Foundation License Version 2.

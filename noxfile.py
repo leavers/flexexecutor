@@ -153,6 +153,7 @@ def test(session: Session):
 
 @nox.session(reuse_venv=True)
 def test_for_ci(session: Session):
+    session.install("-e", ".")
     session.install(
         "coverage[toml]",
         "pytest",
@@ -166,6 +167,7 @@ def test_for_ci(session: Session):
 
 @nox.session(python=["3.11", "3.12", "3.13", "3.14", "3.15"], reuse_venv=True)
 def test_all(session: Session):
+    session.install("-e", ".")
     session.install(
         "coverage[toml]",
         "pytest",
