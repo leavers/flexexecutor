@@ -1,3 +1,4 @@
+import sys
 import threading
 import time
 from concurrent.futures.thread import BrokenThreadPool
@@ -70,6 +71,65 @@ def test_check_broken_pool():
     executor._broken = True
     with pytest.raises(BrokenThreadPool):
         executor.submit(lambda: 1)
+
+
+class CustomBrokenPool(BrokenThreadPool):
+    pass
+
+
+class CustomBrokenExecutor(ThreadPoolExecutor):
+    BROKEN = CustomBrokenPool
+
+
+@pytest.mark.skipif(sys.version_info < (3, 14), reason="BROKEN added in 3.14")
+def test_broken_hook_matches_stdlib_version():
+    assert getattr(ThreadPoolExecutor, "BROKEN") is BrokenThreadPool
+
+
+@pytest.mark.skipif(sys.version_info >= (3, 14), reason="BROKEN added in 3.14")
+def test_no_broken_hook_before_314():
+    assert not hasattr(ThreadPoolExecutor, "BROKEN")
+
+
+@pytest.mark.skipif(sys.version_info < (3, 14), reason="BROKEN added in 3.14")
+def test_custom_broken_on_submit():
+    executor = CustomBrokenExecutor()
+    executor._broken = True
+    with pytest.raises(CustomBrokenPool):
+        executor.submit(lambda: 1)
+
+
+@pytest.mark.skipif(sys.version_info < (3, 14), reason="BROKEN added in 3.14")
+def test_custom_broken_on_initializer_failure():
+    def initializer():
+        raise RuntimeError("test")
+
+    executor = CustomBrokenExecutor(max_workers=1, initializer=initializer)
+    with pytest.raises(CustomBrokenPool):
+        executor.submit(lambda: 1).result()
+    with pytest.raises(CustomBrokenPool):
+        executor.submit(lambda: 1)
+
+
+@pytest.mark.skipif(sys.version_info >= (3, 14), reason="ctxkwargs added in 3.14")
+def test_ctxkwargs_rejected_before_314():
+    with pytest.raises(TypeError):
+        ThreadPoolExecutor(max_workers=1, tag="x")
+
+
+@pytest.mark.skipif(sys.version_info < (3, 14), reason="ctxkwargs added in 3.14")
+def test_ctxkwargs_passed_to_prepare_context():
+    seen = {}
+
+    class CustomExecutor(ThreadPoolExecutor):
+        @classmethod
+        def prepare_context(cls, initializer=None, initargs=(), **kwargs):
+            seen.update(kwargs)
+            return super().prepare_context(initializer, initargs)
+
+    with CustomExecutor(max_workers=1, tag="hello") as executor:
+        assert executor.submit(lambda: 1).result() == 1
+    assert seen == {"tag": "hello"}
 
 
 def test_check_executor_shutdown():
