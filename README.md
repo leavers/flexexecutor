@@ -169,3 +169,21 @@ once per worker interpreter. `max_tasks_per_child` and `idle_timeout` work the
 same way as in the process executor. C extensions must support subinterpreters;
 extensions that do not may fail or leak. Interpreters share the parent process
 address space, so a crash still crashes the process.
+
+### Nested executors
+
+Executors can be nested. Each layer must create a new executor instance; do not
+submit from a worker back to the same executor, because that can deadlock.
+
+The test suite covers all 39 ordered paths of `T` (thread), `P` (process) and
+`I` (interpreter), with an outer-to-inner path length from one to three. On
+Python 3.14+, all paths work except those where `I` appears before a `P`:
+`IP`, `IIP`, `IPI`, `IPP`, `ITP`, `IPT`, `TIP` and `PIP`. In those paths the
+inner `ProcessPoolExecutor` fails with `BrokenProcessPool`.
+
+This is a CPython subinterpreter limitation, not an idle-worker issue. The
+standard library's `ProcessPoolExecutor` fails the same way: `multiprocessing`
+starts a daemon queue feeder thread on the first task, and subinterpreters
+disable daemon threads. The affected tests are marked as expected failures.
+On Python 3.11-3.13, `InterpreterPoolExecutor` is unavailable; the 14 thread
+and process paths still work.

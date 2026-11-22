@@ -138,6 +138,7 @@ pdm run nox -s clean
 - `tests/test_async.py` - Tests for `AsyncPoolExecutor`
 - `tests/test_process.py` - Tests for `ProcessPoolExecutor`
 - `tests/test_interpreter.py` - Tests for `InterpreterPoolExecutor` (3.14+)
+- `tests/test_nested.py` - Nested executor combinations (T/P/I, depth 1-3)
 - `tests/conftest.py` - Shared test utilities
 
 ### Test Patterns
@@ -213,7 +214,7 @@ See `[dependency-groups.dev]` in `pyproject.toml` for the complete list.
 ### Adding a New Feature
 
 1. Implement in `flexexecutor.py`
-2. Add tests in `tests/test_thread.py`, `tests/test_async.py`, `tests/test_process.py`, or `tests/test_interpreter.py`
+2. Add tests in `tests/test_thread.py`, `tests/test_async.py`, `tests/test_process.py`, `tests/test_interpreter.py`, or `tests/test_nested.py`
 3. Run `pdm run nox -s format` to format code
 4. Run `pdm run nox -s ty` to check types
 5. Run `pdm run nox -s test` to run tests
