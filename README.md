@@ -175,15 +175,16 @@ address space, so a crash still crashes the process.
 Executors can be nested. Each layer must create a new executor instance; do not
 submit from a worker back to the same executor, because that can deadlock.
 
-The test suite covers all 39 ordered paths of `T` (thread), `P` (process) and
-`I` (interpreter), with an outer-to-inner path length from one to three. On
-Python 3.14+, all paths work except those where `I` appears before a `P`:
-`IP`, `IIP`, `IPI`, `IPP`, `ITP`, `IPT`, `TIP` and `PIP`. In those paths the
-inner `ProcessPoolExecutor` fails with `BrokenProcessPool`.
+The test suite covers all 84 ordered paths of `T` (thread), `P` (process),
+`I` (interpreter) and `A` (async), with an outer-to-inner path length from one
+to three. On Python 3.14+, all paths work except those where `I` appears before
+a `P`: `IP`, `TIP`, `PIP`, `ITP`, `IPT`, `IPP`, `IPI`, `IPA`, `IIP`, `IAP` and
+`AIP`. In those paths the inner `ProcessPoolExecutor` fails with
+`BrokenProcessPool`.
 
 This is a CPython subinterpreter limitation, not an idle-worker issue. The
 standard library's `ProcessPoolExecutor` fails the same way: `multiprocessing`
 starts a daemon queue feeder thread on the first task, and subinterpreters
 disable daemon threads. The affected tests are marked as expected failures.
-On Python 3.11-3.13, `InterpreterPoolExecutor` is unavailable; the 14 thread
-and process paths still work.
+On Python 3.11-3.13, `InterpreterPoolExecutor` is unavailable; the 39 thread,
+process and async paths still work.

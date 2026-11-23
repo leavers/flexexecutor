@@ -12,7 +12,7 @@ InterpreterPoolExecutor = cast(
     Any, getattr(flexexecutor, "InterpreterPoolExecutor", None)
 )
 _HAS_INTERPRETER = InterpreterPoolExecutor is not None
-_KINDS = "TPI"
+_KINDS = "TPIA"
 _PATHS = [
     "".join(chars)
     for depth in range(1, 4)
@@ -41,6 +41,8 @@ def _make_executor(kind: str):
 def _assert_clean(executor) -> None:
     if isinstance(executor, flexexecutor.ProcessPoolExecutor):
         assert not executor._processes
+    elif isinstance(executor, flexexecutor.AsyncPoolExecutor):
+        assert executor._thread is None or not executor._thread.is_alive()
     else:
         assert not any(thread.is_alive() for thread in executor._threads)
 
@@ -50,6 +52,36 @@ def _run_nested(path: str, index: int = 0):
         return []
 
     kind = path[index]
+    if kind == "A":
+        with flexexecutor.AsyncPoolExecutor(max_workers=1) as executor:
+            nested = cast(
+                list[str],
+                executor.submit(_run_nested_async, path, index + 1).result(timeout=20),
+            )
+        _assert_clean(executor)
+        return [kind, *nested]
+
+    executor = _make_executor(kind)
+    with executor:
+        nested = executor.submit(_run_nested, path, index + 1).result(timeout=20)
+    _assert_clean(executor)
+    return [kind, *nested]
+
+
+async def _run_nested_async(path: str, index: int = 0):
+    if index == len(path):
+        return []
+
+    kind = path[index]
+    if kind == "A":
+        with flexexecutor.AsyncPoolExecutor(max_workers=1) as executor:
+            nested = cast(
+                list[str],
+                executor.submit(_run_nested_async, path, index + 1).result(timeout=20),
+            )
+        _assert_clean(executor)
+        return [kind, *nested]
+
     executor = _make_executor(kind)
     with executor:
         nested = executor.submit(_run_nested, path, index + 1).result(timeout=20)

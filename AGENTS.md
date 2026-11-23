@@ -138,7 +138,7 @@ pdm run nox -s clean
 - `tests/test_async.py` - Tests for `AsyncPoolExecutor`
 - `tests/test_process.py` - Tests for `ProcessPoolExecutor`
 - `tests/test_interpreter.py` - Tests for `InterpreterPoolExecutor` (3.14+)
-- `tests/test_nested.py` - Nested executor combinations (T/P/I, depth 1-3)
+- `tests/test_nested.py` - Nested executor combinations (T/P/I/A, depth 1-3)
 - `tests/conftest.py` - Shared test utilities
 
 ### Test Patterns
