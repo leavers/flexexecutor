@@ -49,7 +49,7 @@ __all__ = (
     "WorkerContext",
 )
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 # The stdlib only added the BROKEN hook and prepare_context(**ctxkwargs) in 3.14
 _PY314_PLUS = sys.version_info >= (3, 14)
