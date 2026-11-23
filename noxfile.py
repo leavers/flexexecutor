@@ -3,7 +3,7 @@ import re
 import sys
 from functools import lru_cache
 from tomllib import load
-from typing import Any, Dict
+from typing import Any
 
 import nox
 from nox import Session
@@ -13,7 +13,7 @@ os.environ.update({"PDM_IGNORE_SAVED_PYTHON": "1"})
 
 
 @lru_cache(maxsize=1)
-def get_pyproject_toml() -> Dict[str, Any]:
+def get_pyproject_toml() -> dict[str, Any]:
     with open("pyproject.toml", mode="rb") as fp:
         return load(fp)
 
@@ -28,10 +28,10 @@ def get_python_version() -> str:
 
 
 @lru_cache(maxsize=1)
-def get_dev_dependencies() -> Dict[str, str]:
+def get_dev_dependencies() -> dict[str, str]:
     pyproject = get_pyproject_toml()
     pat = re.compile(r"[ <>~=]")
-    dev_deps: Dict[str, str] = {}
+    dev_deps: dict[str, str] = {}
     for dep in pyproject["dependency-groups"]["dev"]:
         sep = -1
         for m in pat.finditer(dep):

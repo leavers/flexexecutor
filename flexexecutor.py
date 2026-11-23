@@ -19,6 +19,7 @@ import weakref
 from asyncio import AbstractEventLoop
 from asyncio import Queue as AsyncQueue
 from asyncio.timeouts import timeout
+from collections.abc import Callable
 from concurrent.futures import Future, _base
 from concurrent.futures.process import BrokenProcessPool
 from concurrent.futures.thread import BrokenThreadPool
@@ -30,14 +31,11 @@ from queue import Empty
 from threading import Event, Lock, Semaphore, Thread, current_thread
 from time import monotonic
 from traceback import format_exception
-from typing import TYPE_CHECKING
+from typing import ParamSpec, TypeVar
 from weakref import WeakKeyDictionary, WeakSet, ref
 
-if TYPE_CHECKING:
-    from typing import Callable, ParamSpec, TypeVar
-
-    P = ParamSpec("P")
-    T = TypeVar("T")
+P = ParamSpec("P")
+T = TypeVar("T")
 
 __all__ = (
     "__version__",
@@ -108,7 +106,7 @@ class WorkerContext:
 
     @classmethod
     def prepare(
-        cls, initializer: "Callable | None" = None, initargs: tuple = ()
+        cls, initializer: Callable | None = None, initargs: tuple = ()
     ) -> tuple["Callable[[], WorkerContext]", "Callable[..., tuple]"]:
         """Prepare context factory and task resolver.
 
@@ -133,7 +131,7 @@ class WorkerContext:
 
         return create_context, resolve_task
 
-    def __init__(self, initializer: "Callable | None" = None, initargs: tuple = ()):
+    def __init__(self, initializer: Callable | None = None, initargs: tuple = ()):
         self.initializer = initializer
         self.initargs = initargs
 
@@ -151,7 +149,7 @@ class WorkerContext:
         Called once when the worker thread exits.
         """
 
-    def run(self, task: tuple) -> "T":
+    def run(self, task: tuple) -> T:
         """Execute a task.
 
         :type task: tuple
@@ -190,7 +188,7 @@ class _WorkItem:
 def _worker(
     executor_ref,
     work_queue: queue.SimpleQueue,
-    create_context: "Callable[[], WorkerContext]",
+    create_context: Callable[[], WorkerContext],
     idle_timeout: float,
     max_tasks: int | None = None,
 ):
@@ -264,7 +262,7 @@ class ThreadPoolExecutor(_base.Executor):
 
     @classmethod
     def prepare_context(
-        cls, initializer: "Callable | None" = None, initargs: tuple = ()
+        cls, initializer: Callable | None = None, initargs: tuple = ()
     ) -> tuple["Callable[[], WorkerContext]", "Callable[..., tuple]"]:
         """Prepare context factory and task resolver.
 
@@ -346,11 +344,11 @@ class ThreadPoolExecutor(_base.Executor):
 
     def submit(
         self,
-        fn: "Callable[P, T]",
+        fn: Callable[P, T],
         /,
-        *args: "P.args",
-        **kwargs: "P.kwargs",
-    ) -> "Future[T]":
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> Future[T]:
         if iscoroutinefunction(fn):
             raise TypeError("fn must not be a coroutine function")
 
@@ -558,7 +556,7 @@ def _rebuild_exc(exc, tb):
     return exc
 
 
-class _ProcessWorkItem(object):
+class _ProcessWorkItem:
     def __init__(self, future, fn, args, kwargs):
         self.future = future
         self.fn = fn
@@ -566,7 +564,7 @@ class _ProcessWorkItem(object):
         self.kwargs = kwargs
 
 
-class _ProcessResultItem(object):
+class _ProcessResultItem:
     def __init__(
         self,
         work_id,
@@ -584,7 +582,7 @@ class _ProcessResultItem(object):
         self.had_task = had_task
 
 
-class _ProcessCallItem(object):
+class _ProcessCallItem:
     def __init__(self, work_id, fn, args, kwargs):
         self.work_id = work_id
         self.fn = fn
@@ -1890,7 +1888,7 @@ class AsyncWorkerContext:
 
     @classmethod
     def prepare(
-        cls, initializer: "Callable | None" = None, initargs: tuple = ()
+        cls, initializer: Callable | None = None, initargs: tuple = ()
     ) -> tuple["Callable[[], AsyncWorkerContext]", "Callable[..., tuple]"]:
         """Prepare context factory and task resolver.
 
@@ -1916,7 +1914,7 @@ class AsyncWorkerContext:
 
         return create_context, resolve_task
 
-    def __init__(self, initializer: "Callable | None" = None, initargs: tuple = ()):
+    def __init__(self, initializer: Callable | None = None, initargs: tuple = ()):
         self.initializer = initializer
         self.initargs = initargs
 
@@ -1937,7 +1935,7 @@ class AsyncWorkerContext:
         Called once when the worker thread exits.
         """
 
-    async def run(self, task: tuple) -> "T":
+    async def run(self, task: tuple) -> T:
         """Execute a task.
 
         :type task: tuple
@@ -1980,7 +1978,7 @@ async def _async_worker(
     ready: Event,
     max_workers: int,
     idle_timeout: float,
-    create_context: "Callable[[], AsyncWorkerContext]",
+    create_context: Callable[[], AsyncWorkerContext],
 ):
     """Worker function for the async pool executor with idle timeout support."""
     if max_workers <= 0:
@@ -2068,7 +2066,7 @@ class AsyncPoolExecutor(_base.Executor):
 
     @classmethod
     def prepare_context(
-        cls, initializer: "Callable | None" = None, initargs: tuple = ()
+        cls, initializer: Callable | None = None, initargs: tuple = ()
     ) -> tuple["Callable[[], AsyncWorkerContext]", "Callable[..., tuple]"]:
         """Prepare context factory and task resolver.
 
@@ -2149,11 +2147,11 @@ class AsyncPoolExecutor(_base.Executor):
 
     def submit(
         self,
-        fn: "Callable[P, T]",
+        fn: Callable[P, T],
         /,
-        *args: "P.args",
-        **kwargs: "P.kwargs",
-    ) -> "Future[T]":
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> Future[T]:
         if not iscoroutinefunction(fn):
             raise TypeError("fn must be a coroutine function")
 
