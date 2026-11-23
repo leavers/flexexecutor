@@ -10,7 +10,6 @@ import asyncio
 import atexit
 import itertools
 import multiprocessing as mp
-import multiprocessing.connection
 import os
 import queue
 import sys
@@ -25,6 +24,7 @@ from concurrent.futures.process import BrokenProcessPool
 from concurrent.futures.thread import BrokenThreadPool
 from functools import partial
 from inspect import iscoroutinefunction
+from multiprocessing.connection import wait as mp_wait
 from multiprocessing.queues import Queue
 from queue import Empty
 from threading import Event, Lock, Semaphore, Thread, current_thread
@@ -1099,7 +1099,7 @@ class _ProcessManagerThread(threading.Thread):
         wakeup_reader = self.thread_wakeup._reader
         readers = [result_reader, wakeup_reader]
         worker_sentinels = [p.sentinel for p in list(self.processes.values())]
-        ready = getattr(mp, "connection").wait(readers + worker_sentinels)
+        ready = mp_wait(readers + worker_sentinels)
 
         cause = None
         is_broken = True
