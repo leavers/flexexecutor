@@ -112,12 +112,14 @@ class WorkerContext:
     ) -> tuple["Callable[[], WorkerContext]", "Callable[..., tuple]"]:
         """Prepare context factory and task resolver.
 
-        Args:
-            initializer: A callable used to initialize worker threads.
-            initargs: A tuple of arguments to pass to the initializer.
+        :type initializer: callable, optional
+        :param initializer: A callable used to initialize worker threads.
 
-        Returns:
-            A tuple of (create_context, resolve_task) functions.
+        :type initargs: tuple, optional
+        :param initargs: A tuple of arguments to pass to the initializer.
+
+        :return: A tuple of (create_context, resolve_task) functions.
+        :rtype: tuple
         """
         if initializer is not None:
             if not callable(initializer):
@@ -152,11 +154,11 @@ class WorkerContext:
     def run(self, task: tuple) -> "T":
         """Execute a task.
 
-        Args:
-            task: A tuple of (fn, args, kwargs).
+        :type task: tuple
+        :param task: A tuple of (fn, args, kwargs).
 
-        Returns:
-            The result of the task execution.
+        :return: The result of the task execution.
+        :rtype: T
         """
         fn, args, kwargs = task
         return fn(*args, **kwargs)
@@ -268,12 +270,14 @@ class ThreadPoolExecutor(_base.Executor):
 
         This class method can be overridden to provide a custom WorkerContext.
 
-        Args:
-            initializer: A callable used to initialize worker threads.
-            initargs: A tuple of arguments to pass to the initializer.
+        :type initializer: callable, optional
+        :param initializer: A callable used to initialize worker threads.
 
-        Returns:
-            A tuple of (create_context, resolve_task) functions.
+        :type initargs: tuple, optional
+        :param initargs: A tuple of arguments to pass to the initializer.
+
+        :return: A tuple of (create_context, resolve_task) functions.
+        :rtype: tuple
         """
         return WorkerContext.prepare(initializer, initargs)
 
@@ -678,13 +682,27 @@ def _process_worker(
 
     This worker is run in a separate process.
 
-    Args:
-        call_queue: A ctx.Queue of _ProcessCallItems that will be read and
-            evaluated by the worker.
-        result_queue: A ctx.Queue of _ProcessResultItems that will written
-            to by the worker.
-        initializer: A callable initializer, or None
-        initargs: A tuple of args for the initializer
+    :type call_queue: multiprocessing.queues.Queue
+    :param call_queue: A ctx.Queue of _ProcessCallItems that will be read and
+        evaluated by the worker.
+
+    :type result_queue: multiprocessing.queues.Queue
+    :param result_queue: A ctx.Queue of _ProcessResultItems that will be written
+        to by the worker.
+
+    :type initializer: callable, optional
+    :param initializer: A callable initializer, or None.
+
+    :type initargs: tuple
+    :param initargs: A tuple of args for the initializer.
+
+    :type max_tasks: int, optional
+    :param max_tasks: Maximum number of tasks before the worker exits; None
+        means unlimited.
+
+    :type idle_timeout: float, optional
+    :param idle_timeout: Seconds without a task before the worker exits;
+        negative disables idle retirement.
     """
     if initializer is not None:
         try:
@@ -790,11 +808,10 @@ class _ProcessManagerThread(threading.Thread):
 
     The manager is run in a local thread.
 
-    Args:
-        executor: A reference to the ProcessPoolExecutor that owns
-            this thread. A weakref will be own by the manager as well as
-            references to internal objects used to introspect the state of
-            the executor.
+    :type executor: ProcessPoolExecutor
+    :param executor: A reference to the ProcessPoolExecutor that owns this
+        thread. A weakref will be owned by the manager as well as references
+        to internal objects used to introspect the state of the executor.
     """
 
     def __init__(self, executor):
@@ -1344,27 +1361,35 @@ class ProcessPoolExecutor(_base.Executor):
     ):
         """Initializes a new ProcessPoolExecutor instance.
 
-        Args:
-            max_workers: The maximum number of processes that can be used to
-                execute the given calls.  If None or not given then as many
-                worker processes will be created as the machine has
-                processors.
-            mp_context: A multiprocessing context to launch the workers
-                created using the multiprocessing.get_context('start method')
-                API.  This object should provide SimpleQueue, Queue and
-                Process.
-            initializer: A callable used to initialize worker processes.
-            initargs: A tuple of arguments to pass to the initializer.
-            max_tasks_per_child: The maximum number of tasks a worker
-                process can complete before it will exit and be replaced
-                with a fresh worker process.  The default of None means
-                worker process will live as long as the executor.  Requires
-                a non-'fork' mp_context start method.  When given, we
-                default to using 'spawn' if no mp_context is supplied.
-            idle_timeout: The maximum number of seconds a worker process may
-                remain idle before it exits.  If None or negative, workers
-                are never terminated for being idle.  Defaults to 60 seconds.
-                Requires a non-'fork' start method.
+        :type max_workers: int, optional
+        :param max_workers: The maximum number of processes that can be used to
+            execute the given calls. If None or not given then as many worker
+            processes will be created as the machine has processors.
+
+        :type mp_context: multiprocessing.context.BaseContext, optional
+        :param mp_context: A multiprocessing context to launch the workers
+            created using the multiprocessing.get_context('start method')
+            API. This object should provide SimpleQueue, Queue and Process.
+
+        :type initializer: callable, optional
+        :param initializer: A callable used to initialize worker processes.
+
+        :type initargs: tuple, optional
+        :param initargs: A tuple of arguments to pass to the initializer.
+
+        :type max_tasks_per_child: int, optional
+        :param max_tasks_per_child: The maximum number of tasks a worker
+            process can complete before it will exit and be replaced with a
+            fresh worker process. The default of None means worker process
+            will live as long as the executor. Requires a non-'fork'
+            mp_context start method. When given, we default to using 'spawn'
+            if no mp_context is supplied.
+
+        :type idle_timeout: float, optional
+        :param idle_timeout: The maximum number of seconds a worker process may
+            remain idle before it exits. If None or negative, workers are never
+            terminated for being idle. Defaults to 60 seconds. Requires a
+            non-'fork' start method.
         """
         _check_process_system_limits()
 
@@ -1571,29 +1596,33 @@ class ProcessPoolExecutor(_base.Executor):
     def _map(self, fn, iterables, timeout, chunksize, buffersize):
         """Returns an iterator equivalent to map(fn, iter).
 
-        Args:
-            fn: A callable that will take as many arguments as there are
-                passed iterables.
-            timeout: The maximum number of seconds to wait.  If None, then
-                there is no limit on the wait time.
-            chunksize: If greater than one, the iterables will be chopped
-                into chunks of size chunksize and submitted to the process
-                pool.  If set to one, the items in the list will be sent
-                one at a time.
-            buffersize: The number of submitted tasks whose results have not
-                yet been yielded.  If the buffer is full, iteration over the
-                iterables pauses until a result is yielded from the buffer.
-                If None, all input elements are eagerly collected, and
-                a task is submitted for each.
+        :type fn: callable
+        :param fn: A callable that will take as many arguments as there are
+            passed iterables.
 
-        Returns:
-            An iterator equivalent to: map(func, *iterables) but the calls
+        :type timeout: float, optional
+        :param timeout: The maximum number of seconds to wait. If None, then
+            there is no limit on the wait time.
+
+        :type chunksize: int
+        :param chunksize: If greater than one, the iterables will be chopped
+            into chunks of size chunksize and submitted to the process pool.
+            If set to one, the items in the list will be sent one at a time.
+
+        :type buffersize: int, optional
+        :param buffersize: The number of submitted tasks whose results have not
+            yet been yielded. If the buffer is full, iteration over the
+            iterables pauses until a result is yielded from the buffer. If
+            None, all input elements are eagerly collected, and a task is
+            submitted for each.
+
+        :return: An iterator equivalent to map(func, *iterables) but the calls
             may be evaluated out-of-order.
+        :rtype: Iterator
 
-        Raises:
-            TimeoutError: If the entire result iterator could not be
-                generated before the given timeout.
-            Exception: If fn(*args) raises for any values.
+        :raises TimeoutError: If the entire result iterator could not be
+            generated before the given timeout.
+        :raises Exception: If fn(*args) raises for any values.
         """
         if chunksize < 1:
             raise ValueError("chunksize must be >= 1.")
@@ -1865,13 +1894,15 @@ class AsyncWorkerContext:
     ) -> tuple["Callable[[], AsyncWorkerContext]", "Callable[..., tuple]"]:
         """Prepare context factory and task resolver.
 
-        Args:
-            initializer: A callable used to initialize worker threads.
-                Can be sync or async.
-            initargs: A tuple of arguments to pass to the initializer.
+        :type initializer: callable, optional
+        :param initializer: A callable used to initialize worker threads.
+            Can be sync or async.
 
-        Returns:
-            A tuple of (create_context, resolve_task) functions.
+        :type initargs: tuple, optional
+        :param initargs: A tuple of arguments to pass to the initializer.
+
+        :return: A tuple of (create_context, resolve_task) functions.
+        :rtype: tuple
         """
         if initializer is not None:
             if not callable(initializer):
@@ -1909,11 +1940,11 @@ class AsyncWorkerContext:
     async def run(self, task: tuple) -> "T":
         """Execute a task.
 
-        Args:
-            task: A tuple of (fn, args, kwargs).
+        :type task: tuple
+        :param task: A tuple of (fn, args, kwargs).
 
-        Returns:
-            The result of the task execution.
+        :return: The result of the task execution.
+        :rtype: T
         """
         fn, args, kwargs = task
         if iscoroutinefunction(fn):
@@ -2043,13 +2074,15 @@ class AsyncPoolExecutor(_base.Executor):
 
         This class method can be overridden to provide a custom AsyncWorkerContext.
 
-        Args:
-            initializer: A callable used to initialize worker threads.
-                Can be sync or async.
-            initargs: A tuple of arguments to pass to the initializer.
+        :type initializer: callable, optional
+        :param initializer: A callable used to initialize worker threads.
+            Can be sync or async.
 
-        Returns:
-            A tuple of (create_context, resolve_task) functions.
+        :type initargs: tuple, optional
+        :param initargs: A tuple of arguments to pass to the initializer.
+
+        :return: A tuple of (create_context, resolve_task) functions.
+        :rtype: tuple
         """
         return AsyncWorkerContext.prepare(initializer, initargs)
 
